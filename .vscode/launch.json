@@ -6,7 +6,7 @@
       "type": "node",
       "request": "launch",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["next", "dev"],
+      "runtimeArgs": ["next", "dev", "-p", "44258"],
       "env": {
         "NODE_OPTIONS": "--inspect"
       },

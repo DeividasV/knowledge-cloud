@@ -41,7 +41,7 @@ Fill in your `AUTH_SECRET`, `AUTH_GOOGLE_ID`, and `AUTH_GOOGLE_SECRET`.
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
 2. Create OAuth 2.0 credentials (Web application)
-3. Add authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
+3. Add authorized redirect URI: `http://localhost:44258/api/auth/callback/google`
 4. Enable the **YouTube Data API v3** in your project
 5. Copy Client ID and Client Secret to `.env`
 
@@ -58,7 +58,7 @@ npx prisma generate
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and sign in with Google.
+Open [http://localhost:44258](http://localhost:44258) and sign in with Google.
 
 ### 5. Sync your data
 
