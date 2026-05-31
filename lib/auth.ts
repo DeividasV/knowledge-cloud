@@ -7,6 +7,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers: [
     Google({
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         url: "https://accounts.google.com/o/oauth2/v2/auth",
         params: {
