@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Tv, PlaySquare, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Tv, PlaySquare, Settings, LogOut, Moon, Sun } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -50,6 +51,11 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
       </nav>
       <Separator />
       <div className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Theme</span>
+          <ThemeToggle />
+        </div>
+        <Separator />
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             <AvatarImage src={user.image || undefined} />
