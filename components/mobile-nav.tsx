@@ -6,6 +6,7 @@ import { LayoutDashboard, Tv, PlaySquare, Settings, Menu } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
@@ -26,7 +27,9 @@ export function MobileNav() {
         <YouTubeIcon className="h-6 w-6 text-primary" />
         <span className="text-lg font-semibold">YT Tracker</span>
       </div>
-      <Sheet open={open} onOpenChange={setOpen}>
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+        <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted h-8 w-8">
           <Menu className="h-5 w-5" />
         </SheetTrigger>
@@ -56,6 +59,7 @@ export function MobileNav() {
           </nav>
         </SheetContent>
       </Sheet>
+      </div>
     </div>
   );
 }
