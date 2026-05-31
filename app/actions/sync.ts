@@ -148,27 +148,36 @@ export async function syncChannelVideos(channelId: string) {
   revalidatePath("/settings");
 }
 
-export async function syncAllChannelsVideos() {
+export async function getChannelsNeedingSync(hoursAgo = 24) {
   const session = await auth();
   const userId = session!.user!.id;
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { channels: true },
+  const cutoff = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
+
+  const channels = await prisma.channel.findMany({
+    where: {
+      users: { some: { id: userId } },
+      OR: [
+        { lastSyncedAt: { lt: cutoff } },
+        { lastSyncedAt: null },
+      ],
+    },
+    select: { id: true, title: true, lastSyncedAt: true },
+    orderBy: { lastSyncedAt: "asc" },
   });
 
-  if (!user) throw new Error("User not found");
+  return channels;
+}
 
-  for (const channel of user.channels) {
+export async function syncChannelsBatch(channelIds: string[]) {
+  const results = [];
+  for (const channelId of channelIds) {
     try {
-      await syncChannelVideos(channel.id);
+      await syncChannelVideos(channelId);
+      results.push({ channelId, status: "success" });
     } catch (e: any) {
-      console.error(`Failed to sync ${channel.title}:`, e.message);
+      results.push({ channelId, status: "error", error: e.message });
     }
   }
-
-  revalidatePath("/");
-  revalidatePath("/channels");
-  revalidatePath("/videos");
-  revalidatePath("/settings");
+  return results;
 }

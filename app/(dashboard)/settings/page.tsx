@@ -2,10 +2,10 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { syncSubscriptions, syncAllChannelsVideos, syncChannelVideos } from "@/app/actions/sync";
+import { syncSubscriptions, syncChannelVideos } from "@/app/actions/sync";
 import { forceReauth } from "@/app/actions/auth";
+import { SyncProgressButton } from "@/components/sync-progress";
 import { RefreshCw, AlertTriangle, KeyRound } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 
@@ -88,13 +88,9 @@ export default async function SettingsPage() {
                 Sync Subscriptions
               </Button>
             </form>
-            <form action={syncAllChannelsVideos}>
-              <Button type="submit" variant="outline" disabled={!hasYouTubeScope}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Sync All Videos
-              </Button>
-            </form>
           </div>
+
+          {hasYouTubeScope && <SyncProgressButton />}
 
           {user.lastSyncAt && (
             <p className="text-sm text-muted-foreground">
@@ -108,7 +104,7 @@ export default async function SettingsPage() {
               <p className="font-medium">Quota Notice</p>
               <p className="mt-1">
                 YouTube Data API has a daily quota of ~10,000 units. Each sync consumes units based on
-                your subscription count. Avoid excessive syncing.
+                your subscription count. Batch sync processes 5 channels at a time to avoid timeouts.
               </p>
             </div>
           </div>
@@ -140,7 +136,7 @@ export default async function SettingsPage() {
                   </p>
                 </div>
                 <form action={syncChannelVideos.bind(null, channel.id)}>
-                  <Button type="submit" variant="ghost" size="sm">
+                  <Button type="submit" variant="ghost" size="sm" disabled={!hasYouTubeScope}>
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                 </form>
