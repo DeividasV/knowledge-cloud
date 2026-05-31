@@ -8,12 +8,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Google({
       authorization: {
+        url: "https://accounts.google.com/o/oauth2/v2/auth",
         params: {
           scope:
             "openid email profile https://www.googleapis.com/auth/youtube.readonly",
           access_type: "offline",
           prompt: "consent",
-          approval_prompt: "force",
+          response_type: "code",
         },
       },
     }),
