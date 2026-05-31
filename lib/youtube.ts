@@ -8,12 +8,18 @@ export async function fetchSubscriptions(accessToken: string, pageToken?: string
   });
   if (pageToken) params.set("pageToken", pageToken);
 
+  console.log("[YouTube API] fetchSubscriptions with token:", accessToken.substring(0, 20) + "...");
+
   const res = await fetch(`${YOUTUBE_API_BASE}/subscriptions?${params}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     next: { revalidate: 0 },
   });
 
-  if (!res.ok) throw new Error(`Failed to fetch subscriptions: ${res.status}`);
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => "unknown");
+    console.error("[YouTube API] fetchSubscriptions failed:", res.status, errorBody);
+    throw new Error(`Failed to fetch subscriptions: ${res.status} — ${errorBody}`);
+  }
   return res.json();
 }
 
@@ -30,7 +36,11 @@ export async function fetchChannelDetails(accessToken: string, channelIds: strin
     next: { revalidate: 0 },
   });
 
-  if (!res.ok) throw new Error(`Failed to fetch channels: ${res.status}`);
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => "unknown");
+    console.error("[YouTube API] fetchChannelDetails failed:", res.status, errorBody);
+    throw new Error(`Failed to fetch channels: ${res.status} — ${errorBody}`);
+  }
   return res.json();
 }
 
@@ -47,7 +57,11 @@ export async function fetchPlaylistItems(accessToken: string, playlistId: string
     next: { revalidate: 0 },
   });
 
-  if (!res.ok) throw new Error(`Failed to fetch playlist items: ${res.status}`);
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => "unknown");
+    console.error("[YouTube API] fetchPlaylistItems failed:", res.status, errorBody);
+    throw new Error(`Failed to fetch playlist items: ${res.status} — ${errorBody}`);
+  }
   return res.json();
 }
 
@@ -64,7 +78,11 @@ export async function fetchVideoDetails(accessToken: string, videoIds: string[])
     next: { revalidate: 0 },
   });
 
-  if (!res.ok) throw new Error(`Failed to fetch video details: ${res.status}`);
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => "unknown");
+    console.error("[YouTube API] fetchVideoDetails failed:", res.status, errorBody);
+    throw new Error(`Failed to fetch video details: ${res.status} — ${errorBody}`);
+  }
   return res.json();
 }
 

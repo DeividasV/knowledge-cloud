@@ -26,6 +26,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return session;
     },
+    async signIn({ account, profile }) {
+      console.log("[Auth Debug] signIn callback");
+      console.log("[Auth Debug] account.scope:", account?.scope);
+      console.log("[Auth Debug] account.access_token exists:", !!account?.access_token);
+      console.log("[Auth Debug] account.refresh_token exists:", !!account?.refresh_token);
+      return true;
+    },
   },
   pages: {
     signIn: "/login",
