@@ -27,22 +27,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
     async signIn({ account, profile }) {
-      try {
-        console.log("[Auth Debug] signIn callback fired");
-        console.log("[Auth Debug] account:", JSON.stringify({
-          provider: account?.provider,
-          type: account?.type,
-          scope: account?.scope,
-          has_access_token: !!account?.access_token,
-          has_refresh_token: !!account?.refresh_token,
-          expires_at: account?.expires_at,
-        }));
-        console.log("[Auth Debug] profile email:", (profile as any)?.email);
-        return true;
-      } catch (err: any) {
-        console.error("[Auth Debug] signIn callback ERROR:", err.message);
-        return false;
-      }
+      console.log("[Auth Debug] signIn callback");
+      console.log("[Auth Debug] account keys:", Object.keys(account || {}));
+      console.log("[Auth Debug] account.scope:", account?.scope);
+      console.log("[Auth Debug] account.type:", account?.type);
+      console.log("[Auth Debug] account.provider:", account?.provider);
+      console.log("[Auth Debug] account.providerAccountId:", account?.providerAccountId);
+      console.log("[Auth Debug] account.expires_at:", account?.expires_at);
+      console.log("[Auth Debug] profile.email:", (profile as any)?.email);
+      return true;
+    },
+    async jwt({ token, account }) {
+      console.log("[Auth Debug] jwt callback - has account:", !!account);
+      return token;
+    },
+  },
+  events: {
+    async signIn(message) {
+      console.log("[Auth Debug] EVENT signIn:", JSON.stringify({
+        userId: message.user.id,
+        accountProvider: message.account?.provider,
+        isNewUser: message.isNewUser,
+      }));
+    },
+    async createUser(message) {
+      console.log("[Auth Debug] EVENT createUser:", message.user.id);
+    },
+    async linkAccount(message) {
+      console.log("[Auth Debug] EVENT linkAccount:", JSON.stringify({
+        userId: message.user.id,
+        provider: message.account.provider,
+        providerAccountId: message.account.providerAccountId,
+      }));
+    },
+    async session(message) {
+      console.log("[Auth Debug] EVENT session:", message.session.user?.email);
     },
   },
   pages: {
