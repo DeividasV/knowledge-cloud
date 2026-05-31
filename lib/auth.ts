@@ -27,14 +27,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
     async signIn({ account, profile }) {
-      console.log("[Auth Debug] signIn callback");
-      console.log("[Auth Debug] account.scope:", account?.scope);
-      console.log("[Auth Debug] account.access_token exists:", !!account?.access_token);
-      console.log("[Auth Debug] account.refresh_token exists:", !!account?.refresh_token);
-      return true;
+      try {
+        console.log("[Auth Debug] signIn callback fired");
+        console.log("[Auth Debug] account:", JSON.stringify({
+          provider: account?.provider,
+          type: account?.type,
+          scope: account?.scope,
+          has_access_token: !!account?.access_token,
+          has_refresh_token: !!account?.refresh_token,
+          expires_at: account?.expires_at,
+        }));
+        console.log("[Auth Debug] profile email:", (profile as any)?.email);
+        return true;
+      } catch (err: any) {
+        console.error("[Auth Debug] signIn callback ERROR:", err.message);
+        return false;
+      }
     },
   },
   pages: {
     signIn: "/login",
+    error: "/login",
   },
 });

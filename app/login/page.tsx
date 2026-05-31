@@ -3,7 +3,29 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { YouTubeIcon } from "@/components/youtube-icon";
 
-export default function LoginPage() {
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const error = searchParams.then((p) => p.error);
+
+  const errorMessages: Record<string, string> = {
+    Configuration: "Auth configuration error. Check server logs.",
+    AccessDenied: "Access denied. You may need to approve the app in Google permissions.",
+    Verification: "The verification token expired. Please try again.",
+    OAuthSignin: "Error starting OAuth sign-in. Try again.",
+    OAuthCallback: "Error during OAuth callback. Try again.",
+    OAuthCreateAccount: "Error creating account. Try again.",
+    EmailCreateAccount: "Error creating email account. Try again.",
+    Callback: "Callback error. Try again.",
+    OAuthAccountNotLinked: "This email is already linked to another account.",
+    EmailSignin: "Error sending sign-in email. Try again.",
+    CredentialsSignin: "Invalid credentials.",
+    SessionRequired: "Please sign in to access this page.",
+    Default: "An unknown error occurred. Please try again.",
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-md">
@@ -16,7 +38,8 @@ export default function LoginPage() {
             Connect your YouTube account to track subscriptions and watch progress.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <ErrorBanner error={error} />
           <form
             action={async () => {
               "use server";
@@ -47,6 +70,35 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+async function ErrorBanner({ error }: { error: Promise<string | undefined> }) {
+  const err = await error;
+  if (!err) return null;
+
+  const errorMessages: Record<string, string> = {
+    Configuration: "Auth configuration error. Check server logs.",
+    AccessDenied: "Access denied. You may need to approve the app in Google permissions.",
+    Verification: "The verification token expired. Please try again.",
+    OAuthSignin: "Error starting OAuth sign-in. Try again.",
+    OAuthCallback: "Error during OAuth callback. Try again.",
+    OAuthCreateAccount: "Error creating account. Try again.",
+    EmailCreateAccount: "Error creating email account. Try again.",
+    Callback: "Callback error. Try again.",
+    OAuthAccountNotLinked: "This email is already linked to another account.",
+    EmailSignin: "Error sending sign-in email. Try again.",
+    CredentialsSignin: "Invalid credentials.",
+    SessionRequired: "Please sign in to access this page.",
+    Default: "An unknown error occurred. Please try again.",
+  };
+
+  return (
+    <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-700 dark:text-red-300">
+      <p className="font-medium">Sign-in Error</p>
+      <p className="mt-1">{errorMessages[err] || errorMessages.Default}</p>
+      <p className="mt-1 text-xs opacity-70">Error code: {err}</p>
     </div>
   );
 }
