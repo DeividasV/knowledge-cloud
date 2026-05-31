@@ -1,0 +1,110 @@
+{
+  "version": "2.0.0",
+  "presentation": {
+    "echo": true,
+    "reveal": "always",
+    "focus": false,
+    "panel": "dedicated",
+    "showReuseMessage": false,
+    "clear": true
+  },
+  "tasks": [
+    {
+      "label": "$(play-circle)  Dev Server",
+      "detail": "Start Next.js development server (Turbopack)",
+      "type": "npm",
+      "script": "dev",
+      "problemMatcher": [],
+      "isBackground": true,
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "icon": {
+        "id": "play-circle",
+        "color": "terminal.ansiGreen"
+      },
+      "presentation": {
+        "group": "dev",
+        "reveal": "always",
+        "panel": "shared",
+        "close": false
+      }
+    },
+    {
+      "label": "$(package)  Build",
+      "detail": "Production build with type checking",
+      "type": "npm",
+      "script": "build",
+      "problemMatcher": ["$tsc"],
+      "group": "build",
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiBlue"
+      },
+      "presentation": {
+        "group": "build",
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "$(check)  Lint",
+      "detail": "Run ESLint across the codebase",
+      "type": "npm",
+      "script": "lint",
+      "problemMatcher": ["$eslint-stylish"],
+      "group": "test",
+      "icon": {
+        "id": "check",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "$(database)  Prisma Studio",
+      "detail": "Open Prisma Studio to browse SQLite database",
+      "type": "shell",
+      "command": "npx",
+      "args": ["prisma", "studio"],
+      "isBackground": true,
+      "problemMatcher": [],
+      "icon": {
+        "id": "database",
+        "color": "terminal.ansiMagenta"
+      },
+      "presentation": {
+        "group": "db",
+        "reveal": "always",
+        "panel": "shared",
+        "close": false
+      }
+    },
+    {
+      "label": "$(sync)  Prisma Migrate",
+      "detail": "Run Prisma migrations and regenerate client",
+      "type": "shell",
+      "command": "npx prisma migrate dev && npx prisma generate",
+      "problemMatcher": [],
+      "icon": {
+        "id": "sync",
+        "color": "terminal.ansiCyan"
+      },
+      "presentation": {
+        "group": "db",
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "$(desktop-download)  Install Dependencies",
+      "detail": "Run npm install",
+      "type": "npm",
+      "script": "install",
+      "problemMatcher": [],
+      "icon": {
+        "id": "desktop-download",
+        "color": "terminal.ansiWhite"
+      }
+    }
+  ]
+}
