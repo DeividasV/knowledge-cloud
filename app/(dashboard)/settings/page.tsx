@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { syncSubscriptions, syncAllChannelsVideos, syncChannelVideos } from "@/app/actions/sync";
-import { RefreshCw, AlertTriangle } from "lucide-react";
+import { forceReauth } from "@/app/actions/auth";
+import { RefreshCw, AlertTriangle, KeyRound } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 
 export default async function SettingsPage() {
@@ -24,6 +25,13 @@ export default async function SettingsPage() {
     },
   });
 
+  const account = await prisma.account.findFirst({
+    where: { userId, provider: "google" },
+    select: { scope: true },
+  });
+
+  const hasYouTubeScope = account?.scope?.includes("youtube") ?? false;
+
   if (!user) return null;
 
   return (
@@ -34,6 +42,33 @@ export default async function SettingsPage() {
           Manage your sync settings and subscription data.
         </p>
       </div>
+
+      {!hasYouTubeScope && (
+        <Card className="border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-300">
+              <AlertTriangle className="h-5 w-5" />
+              YouTube Access Not Granted
+            </CardTitle>
+            <CardDescription className="text-red-600 dark:text-red-400">
+              Your Google account is missing the YouTube permission. Sync will fail until you re-authenticate.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ol className="text-sm text-red-700 dark:text-red-300 list-decimal list-inside space-y-1 mb-4">
+              <li>Remove this app from your Google account permissions</li>
+              <li>Click Force Re-authenticate below</li>
+              <li>Sign in again and click Allow on the YouTube permission</li>
+            </ol>
+            <form action={forceReauth}>
+              <Button type="submit" variant="destructive">
+                <KeyRound className="mr-2 h-4 w-4" />
+                Force Re-authenticate
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -48,13 +83,13 @@ export default async function SettingsPage() {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             <form action={syncSubscriptions}>
-              <Button type="submit">
+              <Button type="submit" disabled={!hasYouTubeScope}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Sync Subscriptions
               </Button>
             </form>
             <form action={syncAllChannelsVideos}>
-              <Button type="submit" variant="outline">
+              <Button type="submit" variant="outline" disabled={!hasYouTubeScope}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Sync All Videos
               </Button>
