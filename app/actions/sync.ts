@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { getValidAccessToken } from "@/lib/token";
 import { revalidatePath } from "next/cache";
 import {
   fetchSubscriptions,
@@ -14,13 +15,7 @@ import {
 async function getAccessToken(): Promise<string> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
-
-  const account = await prisma.account.findFirst({
-    where: { userId: session.user.id, provider: "google" },
-  });
-
-  if (!account?.access_token) throw new Error("No Google access token found");
-  return account.access_token;
+  return getValidAccessToken(session.user.id);
 }
 
 export async function syncSubscriptions() {
