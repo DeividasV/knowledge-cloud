@@ -17,6 +17,7 @@ import { syncChannelVideos } from "@/app/actions/sync";
 import { PendingButton } from "@/components/pending-button";
 import { ChannelCategoryManager } from "@/components/channel-category-manager";
 import { ChannelTranscriptFetch } from "@/components/channel-transcript-fetch";
+import { ChannelTagGenerate } from "@/components/channel-tag-generate";
 
 const PAGE_SIZE = 50;
 
@@ -206,6 +207,7 @@ export default async function ChannelPage({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <ChannelTagGenerate channelId={channelId} videoCount={counts.all} />
           <ChannelTranscriptFetch channelId={channelId} />
           <form action={syncChannelVideos.bind(null, channelId)}>
             <PendingButton variant="outline" size="sm" pendingText="Syncing...">
