@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlaySquare, CheckCircle } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
 import { VideoQuickToggle } from "@/components/video-quick-toggle";
+import { VideoTranscript } from "@/components/video-transcript";
 import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
@@ -167,6 +168,10 @@ export default async function ChannelPage({
                   <VideoStatusToggle
                     videoId={video.id}
                     currentStatus={currentStatus}
+                  />
+                  <VideoTranscript
+                    videoId={video.id}
+                    transcript={video.transcript}
                   />
                 </CardContent>
               </Card>
@@ -347,6 +352,10 @@ async function FilteredVideoList({
                 </p>
               </div>
               <VideoStatusToggle videoId={video.id} currentStatus={status} />
+              <VideoTranscript
+                videoId={video.id}
+                transcript={video.transcript}
+              />
             </CardContent>
           </Card>
         ))}

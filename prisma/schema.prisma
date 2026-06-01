@@ -69,15 +69,17 @@ model Channel {
 }
 
 model Video {
-  id          String      @id
-  title       String
-  description String?
-  thumbnail   String?
-  durationSec Int?
-  publishedAt DateTime
-  channelId   String
-  channel     Channel     @relation(fields: [channelId], references: [id])
-  userStates  UserVideo[]
+  id                  String      @id
+  title               String
+  description         String?
+  thumbnail           String?
+  durationSec         Int?
+  publishedAt         DateTime
+  channelId           String
+  channel             Channel     @relation(fields: [channelId], references: [id])
+  userStates          UserVideo[]
+  transcript          String?
+  transcriptFetchedAt DateTime?
 }
 
 model UserVideo {

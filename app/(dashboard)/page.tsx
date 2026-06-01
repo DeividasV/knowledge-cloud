@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { VideoStatus } from "@/lib/types";
 import { VideoQuickToggle } from "@/components/video-quick-toggle";
+import { VideoTranscript } from "@/components/video-transcript";
 
 function StatusBadge({ status }: { status: VideoStatus }) {
   const variants: Record<string, string> = {
@@ -174,6 +175,10 @@ export default async function DashboardPage() {
                       {new Date(video.publishedAt).toLocaleDateString()}
                     </span>
                   </div>
+                  <VideoTranscript
+                    videoId={video.id}
+                    transcript={video.transcript}
+                  />
                 </CardContent>
               </Card>
             ))}

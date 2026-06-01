@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { VideoStatus } from "@/lib/types";
 import { revalidatePath } from "next/cache";
+import { fetchVideoTranscript } from "@/lib/transcript";
 
 async function getUserId(): Promise<string> {
   const session = await auth();
@@ -96,7 +97,7 @@ export async function getRecentVideos(limit = 10) {
 export async function getDashboardStats() {
   const userId = await getUserId();
 
-  const [totalChannels, totalVideos, stats] = await Promise.all([
+  const [totalChannels, totalVideos, stats, transcriptCount] = await Promise.all([
     prisma.channel.count({
       where: { users: { some: { id: userId } } },
     }),
@@ -107,6 +108,12 @@ export async function getDashboardStats() {
       by: ["status"],
       where: { userId },
       _count: { status: true },
+    }),
+    prisma.video.count({
+      where: {
+        channel: { users: { some: { id: userId } } },
+        transcript: { not: null },
+      },
     }),
   ]);
 
@@ -125,9 +132,74 @@ export async function getDashboardStats() {
   return {
     totalChannels,
     totalVideos,
+    transcriptCount,
     unwatched: statusCounts.UNWATCHED,
     watching: statusCounts.WATCHING,
     watched: statusCounts.WATCHED,
     notInterested: statusCounts.NOT_INTERESTED,
   };
+}
+
+// ── Transcript actions ──────────────────────────────────────────────
+
+export async function fetchAndStoreTranscript(videoId: string) {
+  await getUserId();
+
+  const result = await fetchVideoTranscript(videoId);
+
+  if (!result) {
+    throw new Error("Transcript not available for this video.");
+  }
+
+  await prisma.video.update({
+    where: { id: videoId },
+    data: {
+      transcript: result.text,
+      transcriptFetchedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/videos");
+  revalidatePath("/channels/[channelId]");
+  return { success: true, length: result.text.length, lang: result.lang };
+}
+
+export async function getTranscriptStats() {
+  await getUserId();
+
+  const [withTranscript, withoutTranscript] = await Promise.all([
+    prisma.video.count({ where: { transcript: { not: null } } }),
+    prisma.video.count({ where: { transcript: null } }),
+  ]);
+
+  return { withTranscript, withoutTranscript };
+}
+
+export async function fetchTranscriptsBatch(videoIds: string[]) {
+  await getUserId();
+
+  const results = [];
+  for (const videoId of videoIds) {
+    try {
+      const result = await fetchVideoTranscript(videoId);
+      if (result) {
+        await prisma.video.update({
+          where: { id: videoId },
+          data: {
+            transcript: result.text,
+            transcriptFetchedAt: new Date(),
+          },
+        });
+        results.push({ videoId, status: "success", length: result.text.length });
+      } else {
+        results.push({ videoId, status: "unavailable" });
+      }
+    } catch (e: any) {
+      results.push({ videoId, status: "error", error: e.message });
+    }
+  }
+
+  revalidatePath("/videos");
+  revalidatePath("/channels/[channelId]");
+  return results;
 }

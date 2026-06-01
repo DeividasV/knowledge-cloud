@@ -27,6 +27,7 @@ lib/
   prisma.ts           # Singleton Prisma client
   auth.ts             # Auth.js config
   youtube.ts          # YouTube API helpers
+  transcript.ts       # YouTube transcript fetcher
   types.ts            # Shared types (VideoStatus)
 components/
   ui/                 # shadcn components
@@ -41,7 +42,7 @@ components/
 Key models:
 - `User` — Auth.js managed user
 - `Channel` — YouTube channel (linked to users via implicit m-n)
-- `Video` — YouTube video metadata
+- `Video` — YouTube video metadata + transcript
 - `UserVideo` — Watch status per user per video
 
 ## Build Commands

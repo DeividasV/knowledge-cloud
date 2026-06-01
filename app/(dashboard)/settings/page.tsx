@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { syncSubscriptions, syncChannelVideos } from "@/app/actions/sync";
 import { forceReauth } from "@/app/actions/auth";
+import { getTranscriptStats } from "@/app/actions/videos";
 import { SyncProgressButton } from "@/components/sync-progress";
-import { RefreshCw, AlertTriangle, KeyRound } from "lucide-react";
+import { TranscriptBulkFetch } from "@/components/transcript-bulk-fetch";
+import { RefreshCw, AlertTriangle, KeyRound, FileText } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 
 export default async function SettingsPage() {
@@ -31,6 +33,19 @@ export default async function SettingsPage() {
   });
 
   const hasYouTubeScope = account?.scope?.includes("youtube") ?? false;
+
+  const transcriptStats = await getTranscriptStats();
+
+  // Get IDs of videos without transcripts for bulk fetch
+  const videosWithoutTranscript = await prisma.video.findMany({
+    where: {
+      channel: { users: { some: { id: userId } } },
+      transcript: null,
+    },
+    select: { id: true },
+    take: 500,
+  });
+  const missingTranscriptIds = videosWithoutTranscript.map((v) => v.id);
 
   if (!user) return null;
 
@@ -105,6 +120,43 @@ export default async function SettingsPage() {
               <p className="mt-1">
                 YouTube Data API has a daily quota of ~10,000 units. Each sync consumes units based on
                 your subscription count. Batch sync processes 5 channels at a time to avoid timeouts.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Transcripts
+          </CardTitle>
+          <CardDescription>
+            Fetch video transcripts (captions) for search and reference. Not all videos have captions.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">With transcript</span>
+            <span className="font-medium">{transcriptStats.withTranscript}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Without transcript</span>
+            <span className="font-medium">{transcriptStats.withoutTranscript}</span>
+          </div>
+
+          {missingTranscriptIds.length > 0 && (
+            <TranscriptBulkFetch videoIds={missingTranscriptIds} />
+          )}
+
+          <div className="rounded-lg border bg-amber-50 dark:bg-amber-950/30 p-4 flex gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="text-sm text-amber-800 dark:text-amber-200">
+              <p className="font-medium">Rate Limit</p>
+              <p className="mt-1">
+                Transcript fetching uses YouTube's internal caption API. Large batches may be rate-limited.
+                The bulk fetcher processes 10 videos at a time.
               </p>
             </div>
           </div>

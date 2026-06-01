@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlaySquare } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
 import { VideoQuickToggle } from "@/components/video-quick-toggle";
+import { VideoTranscript } from "@/components/video-transcript";
 import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
@@ -137,6 +138,10 @@ export default async function VideosPage({
                   currentStatus={
                     (video.userStates[0]?.status as VideoStatus) || "UNWATCHED"
                   }
+                />
+                <VideoTranscript
+                  videoId={video.id}
+                  transcript={video.transcript}
                 />
               </CardContent>
             </Card>
@@ -285,6 +290,10 @@ async function FilteredVideos({
               <VideoStatusToggle
                 videoId={video.id}
                 currentStatus={status}
+              />
+              <VideoTranscript
+                videoId={video.id}
+                transcript={video.transcript}
               />
             </CardContent>
           </Card>
