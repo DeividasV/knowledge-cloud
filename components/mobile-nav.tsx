@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Tv, PlaySquare, Settings, Menu } from "lucide-react";
+import { LayoutDashboard, Tv, PlaySquare, Settings, Menu, Network } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -14,6 +14,7 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/channels", label: "Channels", icon: Tv },
   { href: "/videos", label: "Videos", icon: PlaySquare },
+  { href: "/tags", label: "Tag Graph", icon: Network },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
