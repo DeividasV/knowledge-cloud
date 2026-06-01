@@ -1,7 +1,7 @@
 /**
- * Lightweight tag extraction from video text (title + description + transcript).
- * Pure algorithmic approach — no ML models, runs entirely in Node.js on CPU.
- * Focus: semantically meaningful noun phrases, not URLs, timestamps, or junk.
+ * Tag extraction from video text (title + transcript).
+ * Focus: semantically meaningful single-word topics and curated title phrases.
+ * Avoids transcript noise — bigrams/trigrams from speech are almost always garbage.
  */
 
 // ── Stopwords ─────────────────────────────────────────────────────────
@@ -83,6 +83,7 @@ const EN_STOPWORDS = new Set([
 const RU_STOPWORDS = new Set([
   "и","в","во","на","с","со","по","к","ко","о","об","обо","от","до","за","из","под",
   "при","про","через","над","не","но","а","или","что","чтоб","чтобы","как","когда",
+  "для","без","да","нет","ни","пусть","хотя","ибо","вне",
   "где","почему","зачем","кто","который","которая","которое","которые","этот","эта",
   "это","эти","тот","та","то","те","так","такой","такая","такое","такие","весь","вся",
   "все","всё","мой","моя","мое","мои","твой","твоя","твое","твои","его","ее","её",
@@ -149,6 +150,8 @@ const RU_STOPWORDS = new Set([
   "ввиду","в силу","в результате","вследствие","из-за","ради",
 ]);
 
+const ALL_STOPWORDS = new Set([...EN_STOPWORDS, ...RU_STOPWORDS]);
+
 // Generic verbs that appear everywhere — heavily penalize these
 const RU_GENERIC_VERBS = new Set([
   "понимать","понять","понимаю","понимаешь","понимает","понимаем","понимаете","понимают",
@@ -193,7 +196,6 @@ const RU_GENERIC_VERBS = new Set([
   "взял","взяла","взяли","брал","брала","брали",
   "давать","дать","даю","даешь","дает","даем","даете","дают",
   "дал","дала","дали","давал","давала","давали",
-  // More generic content verbs
   "проверить","проверил","проверила","проверили","проверяю","проверяет","проверяем",
   "показать","показал","показала","показали","показываю","показывает","показываем",
   "рассказать","рассказал","рассказала","рассказали","рассказываю","рассказывает",
@@ -220,7 +222,39 @@ const RU_GENERIC_VERBS = new Set([
   "сидеть","сидел","сидела","сижу","сидит","сидим",
 ]);
 
-const ALL_STOPWORDS = new Set([...EN_STOPWORDS, ...RU_STOPWORDS]);
+// Phrases that are common in descriptions/transcripts but meaningless as tags
+const JUNK_PHRASES = new Set([
+  // RU conversational fragments
+  "самом деле", "до сих пор", "вне очереди", "по сути", "по факту",
+  "в общем", "в целом", "в принципе", "в основном", "в данный момент",
+  "в настоящее время", "в последнее время", "в ближайшее время",
+  "тем не менее", "таким образом", "вместе с тем", "в связи с",
+  "в отличие от", "в результате", "в зависимости от", "в рамках",
+  "в ходе", "в процессе", "в течение", "в продолжение",
+  // EN conversational fragments
+  "in fact", "of course", "as well", "at all", "at least", "at most",
+  "for example", "such as", "due to", "according to", "based on",
+  "depending on", "in terms of", "in order to", "in addition to",
+  "with respect to", "with regard to", "in relation to", "in connection with",
+  "as a result", "as well as", "as opposed to", "as long as", "as soon as",
+  "in general", "in particular", "in summary", "in conclusion",
+  "on the other hand", "by the way", "for instance", "in other words",
+  "in my opinion", "i think", "i believe", "you know", "i mean",
+  // Description CTA fragments (RU)
+  "выходы новых", "новых роликов", "выходы новых роликов",
+  "моих видео", "развитие этого", "развитие этого канала",
+  "поддержите выходы", "вне очереди",
+  // Description CTA fragments (EN)
+  "check out", "subscribe to", "follow me", "follow us", "follow my",
+  "buy now", "order now", "download now", "visit our", "visit my",
+  "links from", "links in", "apply to join", "apply now",
+  "support my", "support our", "contact me", "contact us",
+  "click the", "click here", "click link", "join the",
+  // Generic filler
+  "rapidly evolving", "evolving field", "rapidly evolving field",
+  "going to", "trying to", "want to", "need to", "have to", "going make",
+  "really like", "really good", "really great", "most important",
+]);
 
 function normalizeRu(word: string): string {
   return word.toLowerCase().replace(/ё/g, "е");
@@ -228,36 +262,22 @@ function normalizeRu(word: string): string {
 
 /**
  * Strip timestamps and other non-content patterns from text before tokenization.
- * YouTube transcripts often contain timestamps like 00:00, 00:37, [00:00], etc.
  */
 function stripJunkPatterns(text: string): string {
   return (
     text
-      // YouTube transcript timestamps: 00:00, 00:37, 1:23:45
       .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
-      // Bracketed timestamps: [00:00], (00:00)
       .replace(/[\[(]\d{1,2}:\d{2}(?::\d{2})?[\])]/g, " ")
-      // URLs
       .replace(/https?:\/\/\S+/gi, " ")
-      // Standalone www / http / https
       .replace(/\b(?:www|http|https)\b/gi, " ")
-      // Domain-like patterns: example.com, example.org
       .replace(/\b\w+\.(?:com|org|net|io|co|ru|uk|de|fr|jp|cn|ai|app|dev|tv|me|info|biz)\b/gi, " ")
-      // Standalone TLDs
       .replace(/\b\.(?:com|org|net|io|co|ru)\b/gi, " ")
-      // Email addresses
       .replace(/\b[\w.-]+@[\w.-]+\.\w+\b/g, " ")
-      // Social media handles: @username, #hashtag
       .replace(/[@#]\w+/g, " ")
-      // File extensions: .mp4, .pdf, .jpg
-      .replace(/\b\w+\.(?:mp4|mp3|pdf|jpg|jpeg|png|gif|doc|docx|xls|xlsx|zip|rar|exe)\b/gi, " ")
-      // Number+unit joined or separated: 1000fps, 500ft, 200km, 10kg, 100mb, 8000m, 100m
+      .replace(/\b\w+\.(?:mp4|mp3|pdf|jpg|jpeg|png|gif|doc|docx|zip|exe)\b/gi, " ")
       .replace(/\b\d+\s*(?:fps|ft|mph|km\/h|km|m\/s|hz|dpi|px|pt|cm|mm|gb|mb|tb|kg|lb|oz|ms|ns|m|am|pm| volts| watts| amps)\b/gi, " ")
-      // Version numbers: v1.0, v2, 2.0
       .replace(/\b(?:v?\d+\.\d+(?:\.\d+)?)\b/g, " ")
-      // Phone-like numbers
       .replace(/\b\+?\d[\d\s\-]{6,}\d\b/g, " ")
-      // Repeated punctuation / symbols
       .replace(/[\*\-_]{2,}/g, " ")
       .replace(/\s+/g, " ")
       .trim()
@@ -284,73 +304,40 @@ function isGenericVerb(word: string): boolean {
 }
 
 function isJunk(phrase: string): boolean {
-  // Too short or too long
   if (phrase.length < 4) return true;
   if (phrase.length > 40) return true;
-
-  // Pure numeric
   if (/^\d+$/.test(phrase)) return true;
-
-  // Timestamp-like: 00 00, 00 37, 01 23 45
   if (/^\d{2}\s+\d{2}(\s+\d{2})?$/.test(phrase)) return true;
-
-  // Starts with a timestamp pattern (e.g. "00 00 agent", "37 minutes")
   if (/^\d{2}\s+\d{2}\b/.test(phrase)) return true;
   if (/^\d+\s/.test(phrase)) return true;
-
-  // Contains long numeric sequences (4+ digits)
   if (/\d{4,}/.test(phrase)) return true;
-
-  // Mostly numbers (more than 30% digits in the whole phrase)
   const digits = (phrase.match(/\d/g) || []).length;
   if (digits > 0 && digits / phrase.length > 0.3) return true;
-
-  // Any individual word that is mostly digits (catches 000m, 080m, etc.)
   const words = phrase.split(/\s+/);
   for (const w of words) {
     const wDigits = (w.match(/\d/g) || []).length;
     if (w.length >= 2 && wDigits / w.length > 0.5) return true;
   }
-
-  // URL / web remnants
   if (/^https?:\/\//.test(phrase)) return true;
   if (/^www\./.test(phrase)) return true;
   if (/\bwww\b/.test(phrase)) return true;
   if (/\bhttps?\b/.test(phrase)) return true;
-
-  // Domain TLD patterns
   if (/\.(com|org|net|io|co|ru|uk|de|fr|jp|cn|ai|app|dev|tv|me|info|biz)$/i.test(phrase)) return true;
-
-  // File extensions
   if (/\.(mp4|mp3|pdf|jpg|jpeg|png|gif|doc|docx|zip|exe)$/i.test(phrase)) return true;
-
-  // Email-like
   if (phrase.includes("@")) return true;
-
-  // Social handles
   if (/^[@#]/.test(phrase)) return true;
-
-  // Repeated words: "respect respect", "abbavoyage abbavoyage"
   const uniqueWords = new Set(words);
   if (uniqueWords.size < words.length) return true;
-
-  // Too many stopwords relative to content words
   const stopCount = words.filter((w) => isStopWord(w)).length;
-  if (words.length >= 2 && stopCount / words.length >= 0.6) return true;
-
-  // Single word that is too short after cleaning
+  if (words.length >= 2 && stopCount / words.length >= 0.5) return true;
   if (words.length === 1 && words[0].length < 4) return true;
-
-  // Contains underscore (YouTube IDs, file names)
   if (phrase.includes("_")) return true;
-
-  // Contains hex prefix
   if (/\b0x[0-9a-f]+\b/i.test(phrase)) return true;
-
-  // Word that looks like a random ID / hash: 10+ chars with scattered letters+numbers
   if (/\b(?=.*[a-z]{3})(?=.*\d{2})[a-z\d]{10,}\b/i.test(phrase)) return true;
 
-  // Call-to-action phrases from descriptions
+  // Known junk phrases
+  if (JUNK_PHRASES.has(phrase.toLowerCase())) return true;
+
   const lower = phrase.toLowerCase();
   const ctaStarters = [
     "checkout our", "check out our", "subscribe to", "подписывайтесь",
@@ -365,19 +352,24 @@ function isJunk(phrase: string): boolean {
   return false;
 }
 
-function isValidNgram(words: string[]): boolean {
+/**
+ * Strict validation for n-grams. Multi-word phrases must have ALL words be meaningful.
+ */
+function isValidNgram(words: string[], minWordLength = 2): boolean {
   if (words.length === 1) {
     const w = normalizeRu(words[0]);
     return !ALL_STOPWORDS.has(w) && !isGenericVerb(w);
   }
-  const first = normalizeRu(words[0]);
-  const last = normalizeRu(words[words.length - 1]);
-  if (ALL_STOPWORDS.has(first) || ALL_STOPWORDS.has(last)) return false;
+  // For multi-word: ALL words must be non-stopwords and non-generic-verbs
+  for (const word of words) {
+    const w = normalizeRu(word);
+    if (ALL_STOPWORDS.has(w) || isGenericVerb(w)) return false;
+    if (word.length < minWordLength) return false;
+  }
   return true;
 }
 
 function splitTextIntoSentences(text: string): string[] {
-  // Split on sentence-ending punctuation followed by space or end
   return text
     .replace(/([.!?])(\s+|$)/g, "$1\n")
     .split("\n")
@@ -401,7 +393,8 @@ function calculateScore(
   tf: number,
   corpusPhrases: Map<string, number>,
   titlePhrases: Set<string>,
-  titleWords: Set<string>
+  titleWords: Set<string>,
+  isFromTitle: boolean
 ): number {
   const normalized = phrase.toLowerCase();
   const words = normalized.split(" ");
@@ -412,45 +405,40 @@ function calculateScore(
 
   let score = tf * idf;
 
-  // Strong phrase length bonus — strongly prefer multi-word topics
-  if (phrase.includes(" ")) {
-    score *= 1 + words.length * 1.2;
-  }
-
-  // Title boost: exact phrases in title get 4x
+  // Title boost: exact phrases in title get a strong boost
   if (titlePhrases.has(normalized)) {
-    score *= 4.0;
+    score *= 3.5;
   }
 
   // Partial title word boost
   const titleWordMatches = words.filter((w) => titleWords.has(w)).length;
   if (titleWordMatches > 0) {
-    score *= 1 + titleWordMatches * 0.6;
+    score *= 1 + titleWordMatches * 0.4;
   }
 
   // Generic verb penalty
   const genericVerbCount = words.filter((w) => isGenericVerb(w)).length;
   if (genericVerbCount > 0) {
-    score *= Math.pow(0.25, genericVerbCount);
+    score *= Math.pow(0.2, genericVerbCount);
   }
 
-  // Unigram penalty
-  if (words.length === 1) {
-    score *= 0.4;
-  }
-
-  // Bigram bonus over unigram
-  if (words.length === 2) {
-    score *= 1.3;
-  }
-
-  // Trigram even more
-  if (words.length === 3) {
-    score *= 1.5;
-    // Penalize trigrams with stopwords in the middle (e.g. "pranks on unsuspecting")
-    if (isStopWord(words[1])) {
-      score *= 0.3;
+  // Moderate bonus for multi-word phrases — but ONLY if from title or high frequency
+  if (words.length >= 2) {
+    if (isFromTitle) {
+      // Title bigrams/trigrams are curated — modest bonus
+      score *= 1.2;
+    } else if (tf >= 3) {
+      // Transcript n-gram must appear 3+ times to be a real phrase
+      score *= 1.1;
+    } else {
+      // Low-frequency transcript n-gram — heavily penalize
+      score *= 0.15;
     }
+  }
+
+  // Unigram penalty — single words need higher TF-IDF to compete
+  if (words.length === 1) {
+    score *= 0.65;
   }
 
   return score;
@@ -469,53 +457,75 @@ export function extractTags(
 ): TagResult[] {
   const { maxTags = 8, corpusPhrases = new Map() } = options;
 
-  // Use title + transcript for tag extraction. Skip description — it's mostly SEO/CTA junk.
-  // Boost title by repeating it since it's the most reliable semantic signal.
-  let combined = [title, title, title, transcript || ""].join(" ");
+  // Title is the most reliable signal — repeat it for weight
+  const titleText = title;
+  const transcriptText = transcript || "";
   const descriptionFallback = !transcript || transcript.length < 50;
-  if (descriptionFallback && description) {
-    // Only use description if there's no meaningful transcript
-    combined += " " + description;
-  }
-  if (!combined.trim()) return [];
+  const descriptionText = descriptionFallback && description ? description : "";
 
-  // Split by sentences so n-grams don't cross sentence boundaries
-  const sentences = splitTextIntoSentences(combined);
-
-  // Title tokens for boosting
-  const titleSentences = splitTextIntoSentences(title);
+  // ── Extract title phrases ──
+  const titleSentences = splitTextIntoSentences(titleText);
   const titleTokens = titleSentences.flatMap((s) => tokenize(s));
   const titleWords = new Set(titleTokens.map((t) => normalizeRu(t)));
   const titlePhrases = new Set<string>();
+  const titlePhraseList: string[] = [];
+
   for (let n = 1; n <= 3; n++) {
     for (const sentence of titleSentences) {
       for (const phrase of getNgramsFromSentence(tokenize(sentence), n)) {
         titlePhrases.add(phrase.toLowerCase());
+        titlePhraseList.push(phrase);
       }
     }
   }
 
-  // Collect all valid n-grams from each sentence
-  const allPhrases: string[] = [];
-  for (let n = 1; n <= 3; n++) {
-    for (const sentence of sentences) {
-      allPhrases.push(...getNgramsFromSentence(tokenize(sentence), n));
+  // ── Extract transcript+description phrases ──
+  const bodySentences = splitTextIntoSentences(transcriptText + " " + descriptionText);
+  const bodyPhraseList: string[] = [];
+
+  // Only unigrams from body text — body bigrams/trigrams are almost always noise
+  for (const sentence of bodySentences) {
+    bodyPhraseList.push(...getNgramsFromSentence(tokenize(sentence), 1));
+  }
+
+  // ── Combine all phrases ──
+  const allPhrases = [
+    ...titlePhraseList.map((p) => ({ phrase: p, fromTitle: true })),
+    ...bodyPhraseList.map((p) => ({ phrase: p, fromTitle: false })),
+  ];
+
+  const validPhrases = allPhrases.filter((p) => !isJunk(p.phrase));
+  if (validPhrases.length === 0) return [];
+
+  // Count frequencies per source
+  const titleFreq = new Map<string, number>();
+  const bodyFreq = new Map<string, number>();
+
+  for (const { phrase, fromTitle } of validPhrases) {
+    if (fromTitle) {
+      titleFreq.set(phrase, (titleFreq.get(phrase) || 0) + 1);
+    } else {
+      bodyFreq.set(phrase, (bodyFreq.get(phrase) || 0) + 1);
     }
   }
 
-  const validPhrases = allPhrases.filter((p) => !isJunk(p));
-  if (validPhrases.length === 0) return [];
-
-  // Count frequencies
-  const docFreq = new Map<string, number>();
-  for (const phrase of validPhrases) {
-    docFreq.set(phrase, (docFreq.get(phrase) || 0) + 1);
+  // Total frequency = title + body
+  const totalFreq = new Map<string, number>();
+  for (const [phrase, count] of titleFreq) {
+    totalFreq.set(phrase, (totalFreq.get(phrase) || 0) + count);
+  }
+  for (const [phrase, count] of bodyFreq) {
+    totalFreq.set(phrase, (totalFreq.get(phrase) || 0) + count);
   }
 
   // Score each phrase
   const scores = new Map<string, number>();
-  for (const [phrase, tf] of docFreq) {
-    scores.set(phrase, calculateScore(phrase, tf, corpusPhrases, titlePhrases, titleWords));
+  for (const [phrase, tf] of totalFreq) {
+    const isFromTitle = titleFreq.has(phrase);
+    scores.set(
+      phrase,
+      calculateScore(phrase, tf, corpusPhrases, titlePhrases, titleWords, isFromTitle)
+    );
   }
 
   // Sort and deduplicate
@@ -528,9 +538,10 @@ export function extractTags(
     if (result.length >= maxTags) break;
     const normalized = phrase.toLowerCase();
 
-    // Skip if this phrase is a substring of an already selected longer phrase
+    // Skip if this phrase is a substring of an already selected longer phrase,
+    // or vice versa (but keep both if they're genuinely different topics)
     const isSubset = Array.from(seen).some((s) =>
-      s.includes(normalized) || normalized.includes(s)
+      s !== normalized && (s.includes(normalized) || normalized.includes(s))
     );
     if (!isSubset || seen.size === 0) {
       result.push({ name: phrase, score: Math.round(score * 100) / 100 });
@@ -547,20 +558,26 @@ export function buildCorpus(
   const corpus = new Map<string, number>();
 
   for (const { title, description, transcript } of videoTexts) {
-    let combined = [title, title, title, transcript || ""].join(" ");
-    const descriptionFallback = !transcript || transcript.length < 50;
-    if (descriptionFallback && description) {
-      combined += " " + description;
-    }
-    const sentences = splitTextIntoSentences(combined);
+    const titleSentences = splitTextIntoSentences(title);
+    const bodySentences = splitTextIntoSentences((transcript || "") + " " + (description || ""));
     const docPhrases = new Set<string>();
 
+    // Title n-grams (up to trigram)
     for (let n = 1; n <= 3; n++) {
-      for (const sentence of sentences) {
+      for (const sentence of titleSentences) {
         for (const phrase of getNgramsFromSentence(tokenize(sentence), n)) {
           if (!isJunk(phrase)) {
             docPhrases.add(phrase.toLowerCase());
           }
+        }
+      }
+    }
+
+    // Body unigrams only
+    for (const sentence of bodySentences) {
+      for (const phrase of getNgramsFromSentence(tokenize(sentence), 1)) {
+        if (!isJunk(phrase)) {
+          docPhrases.add(phrase.toLowerCase());
         }
       }
     }
