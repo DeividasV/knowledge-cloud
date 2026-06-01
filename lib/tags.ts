@@ -1,6 +1,7 @@
 /**
  * Lightweight tag extraction from video text (title + description + transcript).
  * Pure algorithmic approach — no ML models, runs entirely in Node.js on CPU.
+ * Focus: semantically meaningful noun phrases, not URLs, timestamps, or junk.
  */
 
 // ── Stopwords ─────────────────────────────────────────────────────────
@@ -51,41 +52,32 @@ const EN_STOPWORDS = new Set([
   "family","families","power","powers","member","members","community","communities",
   "area","areas","name","names","school","schools","country","countries","party",
   "example","examples","state","states","research","study","studies","book","books",
-  "use","uses","group","groups","course","courses","process","processes","result",
-  "results","change","changes","job","jobs","car","cars","city","cities","line",
-  "body","bodies","face","faces","door","doors","game","games","health","interest",
-  "interests","level","levels","minute","minutes","moment","moments","month","months",
-  "night","nights","reason","reasons","room","rooms","street","streets","team","teams",
-  "week","weeks","paper","papers","section","sections","access","view","views","today",
-  "tomorrow","yesterday","tonight","morning","evening","afternoon","weekend","ago",
-  "recently","already","soon","later","finally","eventually","suddenly","immediately",
-  "quickly","slowly","easily","hardly","recent","next","previous","current","different",
-  "important","special","available","possible","certain","clear","true","false","whole",
-  "half","full","empty","free","open","closed","ready","able","unable","likely","unlikely",
-  "similar","various","general","specific","particular","common","normal","usual",
-  "regular","simple","easy","difficult","hard","strong","weak","fast","slow","high",
-  "low","deep","wide","narrow","long","short","large","small","huge","tiny","bright",
-  "dark","light","heavy","light","thick","thin","soft","hard","smooth","rough","wet",
+  "use","uses","course","courses","process","processes","result","results","change",
+  "changes","job","jobs","car","cars","city","cities","line","body","bodies","face",
+  "faces","door","doors","game","games","health","interest","interests","level","levels",
+  "minute","minutes","moment","moments","month","months","night","nights","reason",
+  "reasons","room","rooms","street","streets","team","teams","week","weeks","paper",
+  "papers","section","sections","access","view","views","today","tomorrow","yesterday",
+  "tonight","morning","evening","afternoon","weekend","ago","recently","already","soon",
+  "later","finally","eventually","suddenly","immediately","quickly","slowly","easily",
+  "hardly","recent","next","previous","current","different","important","special",
+  "available","possible","certain","clear","true","false","whole","half","full","empty",
+  "free","open","closed","ready","able","unable","likely","unlikely","similar","various",
+  "general","specific","particular","common","normal","usual","regular","simple","easy",
+  "difficult","hard","strong","weak","fast","slow","deep","wide","narrow","large","huge",
+  "tiny","bright","dark","light","heavy","thick","thin","soft","smooth","rough","wet",
   "dry","hot","cold","warm","cool","clean","dirty","safe","dangerous","happy","sad",
   "angry","afraid","surprised","tired","busy","quiet","loud","nice","kind","rude",
   "friendly","unfriendly","polite","impolite","funny","serious","boring","interesting",
   "exciting","beautiful","ugly","pretty","handsome","attractive","unattractive","rich",
-  "poor","expensive","cheap","modern","ancient","new","old","young","fresh","stale",
-  "correct","wrong","right","exact","accurate","perfect","complete","incomplete","total",
-  "partial","absolute","relative","positive","negative","active","passive","direct",
-  "indirect","main","major","minor","primary","secondary","final","initial","original",
-  "copy","real","fake","actual","official","unofficial","public","private","personal",
-  "professional","local","global","national","international","domestic","foreign","home",
-  "away","inside","outside","indoor","outdoor","upper","lower","top","bottom","front",
-  "back","center","middle","edge","corner","side","end","start","beginning","finish",
-  "use","make","take","come","go","get","see","know","think","say","tell","ask","give",
-  "find","feel","become","leave","put","mean","keep","let","begin","seem","help",
-  "show","hear","play","run","move","live","believe","bring","happen","write","provide",
-  "sit","stand","lose","pay","meet","include","continue","set","learn","change","lead",
-  "understand","watch","follow","stop","create","speak","read","allow","add","spend",
-  "grow","open","walk","offer","remember","love","consider","appear","buy","wait",
-  "serve","send","expect","build","stay","fall","reach","kill","remain","suggest",
-  "raise","pass","sell","require","report","decide","pull",
+  "poor","expensive","cheap","modern","ancient","fresh","stale","correct","wrong",
+  "exact","accurate","perfect","complete","incomplete","total","partial","absolute",
+  "relative","positive","negative","active","passive","direct","indirect","main","major",
+  "minor","primary","secondary","final","initial","original","copy","real","fake","actual",
+  "official","unofficial","public","private","personal","professional","local","global",
+  "national","international","domestic","foreign","away","inside","outside","indoor",
+  "outdoor","upper","lower","top","bottom","front","back","center","middle","edge","corner",
+  "side","end","start","beginning","finish",
 ]);
 
 const RU_STOPWORDS = new Set([
@@ -93,15 +85,15 @@ const RU_STOPWORDS = new Set([
   "при","про","через","над","не","но","а","или","что","чтоб","чтобы","как","когда",
   "где","почему","зачем","кто","который","которая","которое","которые","этот","эта",
   "это","эти","тот","та","то","те","так","такой","такая","такое","такие","весь","вся",
-  "все","всё","все","мой","моя","мое","мои","твой","твоя","твое","твои","его","ее",
-  "её","их","наш","наша","наше","наши","ваш","ваша","ваше","ваши","свой","своя",
-  "свое","свои","я","ты","он","она","оно","мы","вы","они","меня","тебя","нас",
-  "вас","мне","тебе","ему","ей","нам","вам","им","мной","тобой","им","ей","нами",
-  "вами","ими","себе","себя","собой","собою","был","была","было","были","быть","есть",
-  "иметь","имеет","имеют","имел","имела","буду","будешь","будет","будем","будете",
-  "будут","будь","будьте","может","можно","могу","можешь","можем","можете","могут",
-  "мог","могла","могли","должен","должна","должно","должны","нужно","нужен","нужна",
-  "нужны","надо","надобно","необходимо","важно","важен","важна","важны","хорошо","плохо",
+  "все","всё","мой","моя","мое","мои","твой","твоя","твое","твои","его","ее","её",
+  "их","наш","наша","наше","наши","ваш","ваша","ваше","ваши","свой","своя","свое",
+  "свои","я","ты","он","она","оно","мы","вы","они","меня","тебя","нас","вас","мне",
+  "тебе","ему","ей","нам","вам","им","мной","тобой","им","ей","нами","вами","ими",
+  "себе","себя","собой","собою","был","была","было","были","быть","есть","иметь",
+  "имеет","имеют","имел","имела","буду","будешь","будет","будем","будете","будут",
+  "будь","будьте","может","можно","могу","можешь","можем","можете","могут","мог",
+  "могла","могли","должен","должна","должно","должны","нужно","нужен","нужна","нужны",
+  "надо","надобно","необходимо","важно","важен","важна","важны","хорошо","плохо",
   "лучше","хуже","больше","меньше","много","мало","немного","немало","всего","только",
   "лишь","просто","даже","особенно","очень","слишком","достаточно","совсем","совершенно",
   "абсолютно","почти","примерно","еще","уже","тоже","также","тогда","сейчас","сегодня",
@@ -109,73 +101,55 @@ const RU_STOPWORDS = new Set([
   "безусловно","несомненно","действительно","правда","вероятно","возможно","похоже",
   "кажется","видимо","очевидно","ясно","понятно","известно","говорят","слышно","видно",
   "заметно","ну","вот","так","вроде","типа","однако","тем","тем не менее","все-таки",
-  "все","все же","пока","уже","ещё","ещё","ещё","опять","снова","вновь","назад","вперед",
-  "вперёд","вниз","вверх","сюда","туда","отсюда","оттуда","здесь","там","тут","где-то",
-  "когда-то","как-то","что-то","кто-то","куда-то","откуда-то","зачем-то","почему-то",
-  "какой-то","чей-то","сколько-то","как-нибудь","когда-нибудь","где-нибудь","куда-нибудь",
+  "все","все же","пока","уже","ещё","опять","снова","вновь","назад","вперед","вперёд",
+  "вниз","вверх","сюда","туда","отсюда","оттуда","здесь","там","тут","где-то","когда-то",
+  "как-то","что-то","кто-то","куда-то","откуда-то","зачем-то","почему-то","какой-то",
+  "чей-то","сколько-то","как-нибудь","когда-нибудь","где-нибудь","куда-нибудь",
   "откуда-нибудь","зачем-нибудь","какой-нибудь","кто-нибудь","что-нибудь","кое-что",
   "кое-кто","кое-какой","как","бы","если","потому","потому что","так как","поэтому",
   "значит","именно","вообще","на самом деле","по сути","по факту","кстати","между прочим",
   "к слову","во-первых","во-вторых","в-третьих","например","допустим","предположим",
-  "скажем","вообще-то","кстати","между","прочим","пока что","ещё","уже","опять","снова",
-  "тоже","также","более","менее","очень","совсем","чуть","чуть-чуть","едва","лишь",
-  "только","исключительно","практически","фактически","по существу","в общем","в целом",
-  "в принципе","в основном","прежде всего","прежде","после","перед","под","над","между",
-  "среди","вокруг","вдоль","поперек","через","мимо","против","вместо","ради","благодаря",
-  "несмотря","согласно","согласно","соответственно","вместе","отдельно","отдельный",
-  "вместе","совместно","порознь","один","два","три","четыре","пять","шесть","семь",
-  "восемь","девять","десять","первый","второй","третий","последний","последнее",
-  "один","одна","одно","одни","два","две","два","три","оба","обе","каждый","каждая",
+  "скажем","вообще-то","между","прочим","пока что","опять","снова","тоже","также",
+  "более","менее","чуть","чуть-чуть","едва","исключительно","практически","фактически",
+  "по существу","в общем","в целом","в принципе","в основном","прежде всего","прежде",
+  "после","перед","между","среди","вокруг","вдоль","поперек","мимо","против","вместо",
+  "ради","благодаря","несмотря","согласно","соответственно","вместе","отдельно","порознь",
+  "один","два","три","четыре","пять","шесть","семь","восемь","девять","десять","первый",
+  "второй","третий","последний","последнее","одна","одно","оба","обе","каждый","каждая",
   "каждое","каждые","любой","любая","любое","любые","другой","другая","другое","другие",
-  "сам","сама","само","сами","самый","самая","самое","самые","весь","вся","все","всё",
-  "всякий","всякая","всякое","всякие","некий","некая","некое","некие","некоторый",
-  "некоторая","некоторое","некоторые","ряд","несколько","мало","мало","немного","много",
-  "много","больше","меньше","более","менее","наиболее","наименее","столько","сколько",
-  "столько","сколько","достаточно","слишком","чрезмерно","крайне","весьма","вполне",
-  "вовсе","отнюдь","нисколько","ничуть","никак","никоим","совершенно","абсолютно",
-  "полностью","целиком","полностью","в целом","главным образом","прежде всего","вообще",
-  "отчасти","частично","примерно","приблизительно","примерно","где-то","как-то","какой-то",
-  "сколько-нибудь","как-нибудь","когда-нибудь","где-нибудь","какой-либо","какой-нибудь",
-  "кто-либо","что-либо","ни один","ни одна","ни одно","ни одни","ничто","никто","нигде",
-  "никогда","никак","нисколько","ни в коем случае","ни за что","такой","такая","такое",
-  "такие","какой","какая","какое","какие","чей","чья","чье","чьи","столько","сколько",
-  "этот","тот","такой","какой","который","чей","весь","вся","все","всё","всякий","каждый",
-  "любой","другой","сам","самый","иной","прочий","остальной","former","latter",
-  "тот же","такой же","такой же самый","один и тот же","одинаковый","похожий","подобный",
-  "равный","равно","одинаково","похоже","подобно","соответственно","соответственно",
-  "соответствующий","подходящий","пригодный","годный","способный","умеющий","можющий",
-  "должен","обязан","вынужден","вправе","способен","готов","готовый","склонный","склонен",
-  "подвержен","подверженный","склонен","склонный","склонность","предрасположенность",
-  "склонность","склонен","склонна","склонно","склонны","готов","готова","готово","готовы",
-  "должен","должна","должно","должны","может","можно","могу","можешь","можем","можете",
-  "могут","нужно","нужен","нужна","нужны","надо","необходимо","требуется","следует",
-  "стоит","пора","пришло время","время","час","пора","следует","подобает","приличествует",
-  "полагается","предстоит","предстоит","предстоять","предстоящий","грядущий","будущий",
-  "будущее","прошлый","прошлое","нынешний","ныне","ныне","теперь","теперь","сейчас",
-  "в данный момент","в настоящее время","в последнее время","в ближайшее время",
-  "однажды","когда-либо","когда-нибудь","когда-то","никогда","всегда","постоянно",
-  "непрерывно","беспрерывно","непрерывно","периодически","временами","иногда","часто",
-  "редко","нередко","зачастую","порой","время от времени","от случая к случаю","ежедневно",
-  "еженедельно","ежемесячно","ежегодно","ежечасно","ежеминутно","постоянно","вечно",
-  "навсегда","навеки","навек","раз и навсегда","навсегда","раз","дважды","трижды",
-  "четырежды","впервые","вновь","снова","опять","еще раз","в другой раз","в следующий раз",
-  "на этот раз","в этот раз","тогда","в то время","в тот момент","в то же время","одновременно",
-  "вместе","одновременно","после","потом","затем","з afterwards","впоследствии","в дальнейшем",
-  "впоследствии","в дальнейшем","впоследствии","позже","раньше","прежде","до","перед",
-  "до того","прежде чем","до того как","пока","пока не","пока что","покамест","в то время как",
+  "сам","сама","само","сами","самый","самая","самое","самые","всякий","всякая","всякое",
+  "всякие","некий","некая","некое","некие","некоторый","некоторая","некоторое","некоторые",
+  "ряд","несколько","столько","сколько","достаточно","слишком","чрезмерно","крайне",
+  "весьма","вполне","вовсе","отнюдь","нисколько","ничуть","никак","никоим","совершенно",
+  "полностью","целиком","отчасти","частично","приблизительно","где-то","как-то","какой-то",
+  "сколько-нибудь","как-нибудь","когда-нибудь","где-нибудь","какой-либо","кто-либо",
+  "что-либо","ни один","ни одна","ни одно","ни одни","ничто","никто","нигде","никогда",
+  "ни за что","такой","такая","такое","такие","какой","какая","какое","какие","чей",
+  "чья","чье","чьи","этот","тот","такой","какой","который","чей","весь","вся","все",
+  "всё","всякий","каждый","любой","другой","сам","самый","иной","прочий","остальной",
+  "тот же","такой же","один и тот же","одинаковый","похожий","подобный","равный","равно",
+  "одинаково","похоже","подобно","соответственно","соответствующий","подходящий",
+  "пригодный","годный","способный","умеющий","можущий","должен","обязан","вынужден",
+  "вправе","способен","готов","готовый","склонный","склонен","подвержен","подверженный",
+  "готов","готова","готово","готовы","нужно","нужен","нужна","нужны","надо","необходимо",
+  "требуется","следует","стоит","пора","пришло время","время","час","следует","подобает",
+  "полагается","предстоит","предстоять","предстоящий","грядущий","будущий","будущее",
+  "прошлый","прошлое","нынешний","ныне","теперь","сейчас","в данный момент",
+  "в настоящее время","в последнее время","в ближайшее время","однажды","когда-либо",
+  "когда-нибудь","когда-то","всегда","постоянно","непрерывно","беспрерывно","периодически",
+  "временами","порой","время от времени","от случая к случаю","ежедневно","еженедельно",
+  "ежемесячно","ежегодно","ежечасно","ежеминутно","вечно","навсегда","навеки","навек",
+  "раз и навсегда","раз","дважды","трижды","четырежды","впервые","вновь","снова","опять",
+  "еще раз","в другой раз","в следующий раз","на этот раз","в этот раз","тогда",
+  "в то время","в тот момент","в то же время","одновременно","вместе","после","потом",
+  "затем","впоследствии","в дальнейшем","позже","раньше","до","перед","до того",
+  "прежде чем","до того как","пока","пока не","пока что","покамест","в то время как",
   "во время","в течение","в продолжение","в ходе","в процессе","по мере","по мере того как",
-  "с тех пор","с того времени","оттого","оттого что","потому","потому что","благодаря тому",
-  "благодаря тому что","ввиду","ввиду того","в силу","в силу того","в результате",
-  "в результате того","вследствие","вследствие того","из-за","из-за того","ради","ради того",
-  "затем","затем","потом","после","впоследствии","в дальнейшем","впоследствии","в дальнейшем",
-  "впоследствии","в дальнейшем","в конце концов","в итоге","в конечном счете","в общем и целом",
-  "в целом","в общем","итак","итого","следовательно","значит","таким образом","поэтому",
-  "отсюда","оттого","стало быть","следовательно","значит","выходит","получается",
-  "оказывается","получается","выходит","получается","оказывается","выходит","получается",
-  "получается","оказывается","выходит","выходит","оказывается","оказывается","получается",
+  "с тех пор","с того времени","оттого","оттого что","благодаря тому","благодаря тому что",
+  "ввиду","в силу","в результате","вследствие","из-за","ради",
 ]);
 
-// Generic Russian verbs that appear everywhere — penalize these
+// Generic verbs that appear everywhere — heavily penalize these
 const RU_GENERIC_VERBS = new Set([
   "понимать","понять","понимаю","понимаешь","понимает","понимаем","понимаете","понимают",
   "понял","поняла","поняли","понимал","понимала","понимали","понимание","понимании",
@@ -219,17 +193,80 @@ const RU_GENERIC_VERBS = new Set([
   "взял","взяла","взяли","брал","брала","брали",
   "давать","дать","даю","даешь","дает","даем","даете","дают",
   "дал","дала","дали","давал","давала","давали",
+  // More generic content verbs
+  "проверить","проверил","проверила","проверили","проверяю","проверяет","проверяем",
+  "показать","показал","показала","показали","показываю","показывает","показываем",
+  "рассказать","рассказал","рассказала","рассказали","рассказываю","рассказывает",
+  "тестировать","тестирую","тестирует","тест","тестил","тестила",
+  "сравнить","сравнил","сравнила","сравниваю","сравнивает",
+  "купить","купил","купила","покупаю","покупает","покупаем",
+  "найти","нашел","нашла","находить","нахожу","находит","находим",
+  "использовать","использовал","использую","использует","используем",
+  "попробовать","попробовал","пробую","пробует","пробуем",
+  "показать","показал","показываю","показывает",
+  "рассказать","рассказал","рассказываю","рассказывает",
+  "обзор","тест","тестирование","проверка","сравнение",
+  "потерять","потерял","потеряла","теряю","теряет","теряем",
+  "спросить","спросил","спросила","спрашиваю","спрашивает",
+  "ответить","ответил","ответила","отвечаю","отвечает",
+  "понравиться","понравилось","нравится","нравится",
+  "забыть","забыл","забыла","забываю","забывает",
+  "вспомнить","вспомнил","вспомнила","вспоминаю","вспоминает",
+  "ждать","ждал","ждала","жду","ждет","ждем",
+  "получить","получил","получила","получаю","получает","получаем",
+  "отправить","отправил","отправила","отправляю","отправляет",
+  "взять","взял","взяла","беру","берет","берем",
+  "поставить","поставил","поставила","ставлю","ставит","ставим",
+  "сидеть","сидел","сидела","сижу","сидит","сидим",
 ]);
 
 const ALL_STOPWORDS = new Set([...EN_STOPWORDS, ...RU_STOPWORDS]);
 
 function normalizeRu(word: string): string {
-  // Normalize Russian ё→е for consistent stopword matching
   return word.toLowerCase().replace(/ё/g, "е");
 }
 
+/**
+ * Strip timestamps and other non-content patterns from text before tokenization.
+ * YouTube transcripts often contain timestamps like 00:00, 00:37, [00:00], etc.
+ */
+function stripJunkPatterns(text: string): string {
+  return (
+    text
+      // YouTube transcript timestamps: 00:00, 00:37, 1:23:45
+      .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ")
+      // Bracketed timestamps: [00:00], (00:00)
+      .replace(/[\[(]\d{1,2}:\d{2}(?::\d{2})?[\])]/g, " ")
+      // URLs
+      .replace(/https?:\/\/\S+/gi, " ")
+      // Standalone www / http / https
+      .replace(/\b(?:www|http|https)\b/gi, " ")
+      // Domain-like patterns: example.com, example.org
+      .replace(/\b\w+\.(?:com|org|net|io|co|ru|uk|de|fr|jp|cn|ai|app|dev|tv|me|info|biz)\b/gi, " ")
+      // Standalone TLDs
+      .replace(/\b\.(?:com|org|net|io|co|ru)\b/gi, " ")
+      // Email addresses
+      .replace(/\b[\w.-]+@[\w.-]+\.\w+\b/g, " ")
+      // Social media handles: @username, #hashtag
+      .replace(/[@#]\w+/g, " ")
+      // File extensions: .mp4, .pdf, .jpg
+      .replace(/\b\w+\.(?:mp4|mp3|pdf|jpg|jpeg|png|gif|doc|docx|xls|xlsx|zip|rar|exe)\b/gi, " ")
+      // Number+unit joined or separated: 1000fps, 500ft, 200km, 10kg, 100mb, 8000m, 100m
+      .replace(/\b\d+\s*(?:fps|ft|mph|km\/h|km|m\/s|hz|dpi|px|pt|cm|mm|gb|mb|tb|kg|lb|oz|ms|ns|m|am|pm| volts| watts| amps)\b/gi, " ")
+      // Version numbers: v1.0, v2, 2.0
+      .replace(/\b(?:v?\d+\.\d+(?:\.\d+)?)\b/g, " ")
+      // Phone-like numbers
+      .replace(/\b\+?\d[\d\s\-]{6,}\d\b/g, " ")
+      // Repeated punctuation / symbols
+      .replace(/[\*\-_]{2,}/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+}
+
 function tokenize(text: string): string[] {
-  return text
+  const cleaned = stripJunkPatterns(text);
+  return cleaned
     .toLowerCase()
     .replace(/[^\w\sа-яё]/gi, " ")
     .replace(/\s+/g, " ")
@@ -247,12 +284,84 @@ function isGenericVerb(word: string): boolean {
 }
 
 function isJunk(phrase: string): boolean {
-  if (/^\d+$/.test(phrase)) return true;
-  if (phrase.length < 3) return true;
+  // Too short or too long
+  if (phrase.length < 4) return true;
   if (phrase.length > 40) return true;
+
+  // Pure numeric
+  if (/^\d+$/.test(phrase)) return true;
+
+  // Timestamp-like: 00 00, 00 37, 01 23 45
+  if (/^\d{2}\s+\d{2}(\s+\d{2})?$/.test(phrase)) return true;
+
+  // Starts with a timestamp pattern (e.g. "00 00 agent", "37 minutes")
+  if (/^\d{2}\s+\d{2}\b/.test(phrase)) return true;
+  if (/^\d+\s/.test(phrase)) return true;
+
+  // Contains long numeric sequences (4+ digits)
+  if (/\d{4,}/.test(phrase)) return true;
+
+  // Mostly numbers (more than 30% digits in the whole phrase)
+  const digits = (phrase.match(/\d/g) || []).length;
+  if (digits > 0 && digits / phrase.length > 0.3) return true;
+
+  // Any individual word that is mostly digits (catches 000m, 080m, etc.)
+  const words = phrase.split(/\s+/);
+  for (const w of words) {
+    const wDigits = (w.match(/\d/g) || []).length;
+    if (w.length >= 2 && wDigits / w.length > 0.5) return true;
+  }
+
+  // URL / web remnants
   if (/^https?:\/\//.test(phrase)) return true;
   if (/^www\./.test(phrase)) return true;
-  if (/\d{4,}/.test(phrase)) return true;
+  if (/\bwww\b/.test(phrase)) return true;
+  if (/\bhttps?\b/.test(phrase)) return true;
+
+  // Domain TLD patterns
+  if (/\.(com|org|net|io|co|ru|uk|de|fr|jp|cn|ai|app|dev|tv|me|info|biz)$/i.test(phrase)) return true;
+
+  // File extensions
+  if (/\.(mp4|mp3|pdf|jpg|jpeg|png|gif|doc|docx|zip|exe)$/i.test(phrase)) return true;
+
+  // Email-like
+  if (phrase.includes("@")) return true;
+
+  // Social handles
+  if (/^[@#]/.test(phrase)) return true;
+
+  // Repeated words: "respect respect", "abbavoyage abbavoyage"
+  const uniqueWords = new Set(words);
+  if (uniqueWords.size < words.length) return true;
+
+  // Too many stopwords relative to content words
+  const stopCount = words.filter((w) => isStopWord(w)).length;
+  if (words.length >= 2 && stopCount / words.length >= 0.6) return true;
+
+  // Single word that is too short after cleaning
+  if (words.length === 1 && words[0].length < 4) return true;
+
+  // Contains underscore (YouTube IDs, file names)
+  if (phrase.includes("_")) return true;
+
+  // Contains hex prefix
+  if (/\b0x[0-9a-f]+\b/i.test(phrase)) return true;
+
+  // Word that looks like a random ID / hash: 10+ chars with scattered letters+numbers
+  if (/\b(?=.*[a-z]{3})(?=.*\d{2})[a-z\d]{10,}\b/i.test(phrase)) return true;
+
+  // Call-to-action phrases from descriptions
+  const lower = phrase.toLowerCase();
+  const ctaStarters = [
+    "checkout our", "check out our", "subscribe to", "подписывайтесь",
+    "follow me", "follow us", "follow my", "buy now", "order now",
+    "download now", "download the", "visit our", "visit my",
+    "links from", "links in", "apply to join", "apply now",
+    "support my", "support our", "contact me", "contact us",
+    "click the", "click here", "click link",
+  ];
+  if (ctaStarters.some((s) => lower.startsWith(s))) return true;
+
   return false;
 }
 
@@ -264,11 +373,19 @@ function isValidNgram(words: string[]): boolean {
   const first = normalizeRu(words[0]);
   const last = normalizeRu(words[words.length - 1]);
   if (ALL_STOPWORDS.has(first) || ALL_STOPWORDS.has(last)) return false;
-  // Penalize but don't fully reject phrases containing generic verbs
   return true;
 }
 
-function getNgrams(tokens: string[], n: number): string[] {
+function splitTextIntoSentences(text: string): string[] {
+  // Split on sentence-ending punctuation followed by space or end
+  return text
+    .replace(/([.!?])(\s+|$)/g, "$1\n")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+function getNgramsFromSentence(tokens: string[], n: number): string[] {
   const result: string[] = [];
   for (let i = 0; i <= tokens.length - n; i++) {
     const slice = tokens.slice(i, i + n);
@@ -295,31 +412,45 @@ function calculateScore(
 
   let score = tf * idf;
 
-  // Strong phrase length bonus
+  // Strong phrase length bonus — strongly prefer multi-word topics
   if (phrase.includes(" ")) {
-    score *= 1 + words.length * 0.8;
+    score *= 1 + words.length * 1.2;
   }
 
-  // Title boost: phrases in title get 3x
+  // Title boost: exact phrases in title get 4x
   if (titlePhrases.has(normalized)) {
-    score *= 3.0;
+    score *= 4.0;
   }
 
-  // Partial title word boost: words from title get 2x
+  // Partial title word boost
   const titleWordMatches = words.filter((w) => titleWords.has(w)).length;
   if (titleWordMatches > 0) {
-    score *= 1 + titleWordMatches * 0.5;
+    score *= 1 + titleWordMatches * 0.6;
   }
 
   // Generic verb penalty
   const genericVerbCount = words.filter((w) => isGenericVerb(w)).length;
   if (genericVerbCount > 0) {
-    score *= Math.pow(0.3, genericVerbCount);
+    score *= Math.pow(0.25, genericVerbCount);
   }
 
-  // Unigram penalty (single words are less specific)
+  // Unigram penalty
   if (words.length === 1) {
-    score *= 0.6;
+    score *= 0.4;
+  }
+
+  // Bigram bonus over unigram
+  if (words.length === 2) {
+    score *= 1.3;
+  }
+
+  // Trigram even more
+  if (words.length === 3) {
+    score *= 1.5;
+    // Penalize trigrams with stopwords in the middle (e.g. "pranks on unsuspecting")
+    if (isStopWord(words[1])) {
+      score *= 0.3;
+    }
   }
 
   return score;
@@ -338,26 +469,38 @@ export function extractTags(
 ): TagResult[] {
   const { maxTags = 8, corpusPhrases = new Map() } = options;
 
-  const combined = [title, description || "", transcript || ""].join(" ");
+  // Use title + transcript for tag extraction. Skip description — it's mostly SEO/CTA junk.
+  // Boost title by repeating it since it's the most reliable semantic signal.
+  let combined = [title, title, title, transcript || ""].join(" ");
+  const descriptionFallback = !transcript || transcript.length < 50;
+  if (descriptionFallback && description) {
+    // Only use description if there's no meaningful transcript
+    combined += " " + description;
+  }
   if (!combined.trim()) return [];
 
-  const tokens = tokenize(combined);
-  if (tokens.length === 0) return [];
+  // Split by sentences so n-grams don't cross sentence boundaries
+  const sentences = splitTextIntoSentences(combined);
 
   // Title tokens for boosting
-  const titleTokens = tokenize(title);
+  const titleSentences = splitTextIntoSentences(title);
+  const titleTokens = titleSentences.flatMap((s) => tokenize(s));
   const titleWords = new Set(titleTokens.map((t) => normalizeRu(t)));
   const titlePhrases = new Set<string>();
   for (let n = 1; n <= 3; n++) {
-    for (const phrase of getNgrams(titleTokens, n)) {
-      titlePhrases.add(phrase.toLowerCase());
+    for (const sentence of titleSentences) {
+      for (const phrase of getNgramsFromSentence(tokenize(sentence), n)) {
+        titlePhrases.add(phrase.toLowerCase());
+      }
     }
   }
 
-  // Collect all valid n-grams
+  // Collect all valid n-grams from each sentence
   const allPhrases: string[] = [];
   for (let n = 1; n <= 3; n++) {
-    allPhrases.push(...getNgrams(tokens, n));
+    for (const sentence of sentences) {
+      allPhrases.push(...getNgramsFromSentence(tokenize(sentence), n));
+    }
   }
 
   const validPhrases = allPhrases.filter((p) => !isJunk(p));
@@ -404,14 +547,20 @@ export function buildCorpus(
   const corpus = new Map<string, number>();
 
   for (const { title, description, transcript } of videoTexts) {
-    const combined = [title, description || "", transcript || ""].join(" ");
-    const tokens = tokenize(combined);
+    let combined = [title, title, title, transcript || ""].join(" ");
+    const descriptionFallback = !transcript || transcript.length < 50;
+    if (descriptionFallback && description) {
+      combined += " " + description;
+    }
+    const sentences = splitTextIntoSentences(combined);
     const docPhrases = new Set<string>();
 
     for (let n = 1; n <= 3; n++) {
-      for (const phrase of getNgrams(tokens, n)) {
-        if (!isJunk(phrase)) {
-          docPhrases.add(phrase.toLowerCase());
+      for (const sentence of sentences) {
+        for (const phrase of getNgramsFromSentence(tokenize(sentence), n)) {
+          if (!isJunk(phrase)) {
+            docPhrases.add(phrase.toLowerCase());
+          }
         }
       }
     }
