@@ -3,10 +3,10 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  // Find all videos that are shorts (≤60 seconds)
+  // Find all short videos (≤5 minutes / 300 seconds)
   const shorts = await prisma.video.findMany({
     where: {
-      durationSec: { lte: 60 },
+      durationSec: { lte: 300 },
     },
     select: { id: true, title: true, durationSec: true },
   });

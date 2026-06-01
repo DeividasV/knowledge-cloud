@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { PlaySquare, Users } from "lucide-react";
 import Link from "next/link";
 import { SearchInput } from "@/components/search-input";
-import { cn } from "@/lib/utils";
+import { CategoryFilter } from "./channels-client";
 
 export default async function ChannelsPage({
   searchParams,
@@ -73,35 +73,15 @@ export default async function ChannelsPage({
 
       <SearchInput placeholder="Search channels by name..." />
 
-      {allCategories.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/channels"
-            className={cn(
-              "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-              !categoryFilter
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-input bg-background text-foreground hover:bg-accent"
-            )}
-          >
-            All ({totalChannels})
-          </Link>
-          {allCategories.map((cat) => (
-            <Link
-              key={cat.id}
-              href={`/channels?category=${encodeURIComponent(cat.name)}`}
-              className={cn(
-                "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                categoryFilter === cat.name
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "border-input bg-background text-foreground hover:bg-accent"
-              )}
-            >
-              {cat.name} ({cat._count.channels})
-            </Link>
-          ))}
-        </div>
-      )}
+      <CategoryFilter
+        categories={allCategories.map((c) => ({
+          id: c.id,
+          name: c.name,
+          count: c._count.channels,
+        }))}
+        totalChannels={totalChannels}
+        currentCategory={categoryFilter || null}
+      />
 
       {channelsWithCounts.length === 0 ? (
         <Card className="p-8 text-center">

@@ -168,8 +168,8 @@ export async function syncChannelVideos(channelId: string) {
   for (const v of videoDetails) {
     const durationSec = parseDuration(v.contentDetails.duration);
 
-    // Skip shorts (≤60 seconds)
-    if (durationSec > 0 && durationSec <= 60) {
+    // Skip short videos (≤5 minutes)
+    if (durationSec > 0 && durationSec <= 300) {
       if (existingIds.has(v.id)) {
         shortsToDelete.push(v.id);
       }
