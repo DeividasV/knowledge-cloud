@@ -21,87 +21,110 @@ export interface TagGraphData {
   edges: TagGraphEdge[];
 }
 
-export async function getTagGraph(maxTags = 150, minCooccurrence = 2): Promise<TagGraphData> {
+export async function getTagGraph(
+  maxTags = 150,
+  minCooccurrence = 2,
+  categoryNames?: string[]
+): Promise<TagGraphData> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
   const userId = session.user.id;
 
-  // Get top tags by video count (only from user's channels)
-  const topTags = await prisma.tag.findMany({
-    where: {
-      videoTags: {
-        some: {
-          video: {
-            channel: { users: { some: { id: userId } } },
-          },
-        },
-      },
-    },
-    include: {
-      videoTags: {
-        where: {
-          video: {
-            channel: { users: { some: { id: userId } } },
-          },
-        },
-        select: { videoId: true, score: true },
-      },
-    },
-    orderBy: {
-      videoTags: { _count: "desc" },
-    },
-    take: maxTags,
-  });
-
-  const tagMap = new Map<string, TagGraphNode>();
-  const tagVideoIds = new Map<string, Set<string>>();
-
-  for (const tag of topTags) {
-    tagMap.set(tag.id, {
-      id: tag.id,
-      name: tag.name,
-      videoCount: tag.videoTags.length,
-      totalScore: tag.videoTags.reduce((s, vt) => s + vt.score, 0),
-    });
-    tagVideoIds.set(tag.id, new Set(tag.videoTags.map((vt) => vt.videoId)));
+  // Build channel filter
+  const channelWhere: any = { users: { some: { id: userId } } };
+  if (categoryNames && categoryNames.length > 0) {
+    channelWhere.categories = { some: { name: { in: categoryNames } } };
   }
 
+  // Get all video IDs from matching channels
+  const videos = await prisma.video.findMany({
+    where: { channel: channelWhere },
+    select: { id: true },
+  });
+  const videoIdSet = new Set(videos.map((v) => v.id));
+
+  if (videoIdSet.size === 0) {
+    return { nodes: [], edges: [] };
+  }
+
+  // Get all videoTags for these videos
+  const videoTags = await prisma.videoTag.findMany({
+    where: { videoId: { in: Array.from(videoIdSet) } },
+    include: { tag: true },
+  });
+
+  // Group by tag
+  const tagMap = new Map<
+    string,
+    { name: string; videoIds: Set<string>; totalScore: number }
+  >();
+
+  for (const vt of videoTags) {
+    const existing = tagMap.get(vt.tagId);
+    if (existing) {
+      existing.videoIds.add(vt.videoId);
+      existing.totalScore += vt.score;
+    } else {
+      tagMap.set(vt.tagId, {
+        name: vt.tag.name,
+        videoIds: new Set([vt.videoId]),
+        totalScore: vt.score,
+      });
+    }
+  }
+
+  // Sort by video count and take top N
+  const sortedTags = Array.from(tagMap.entries())
+    .sort((a, b) => b[1].videoIds.size - a[1].videoIds.size)
+    .slice(0, maxTags);
+
+  const nodes: TagGraphNode[] = sortedTags.map(([id, data]) => ({
+    id,
+    name: data.name,
+    videoCount: data.videoIds.size,
+    totalScore: Math.round(data.totalScore * 100) / 100,
+  }));
+
   // Compute co-occurrence edges
-  const tagIds = Array.from(tagMap.keys());
   const edges: TagGraphEdge[] = [];
-
-  for (let i = 0; i < tagIds.length; i++) {
-    for (let j = i + 1; j < tagIds.length; j++) {
-      const a = tagIds[i];
-      const b = tagIds[j];
-      const setA = tagVideoIds.get(a)!;
-      const setB = tagVideoIds.get(b)!;
-
+  for (let i = 0; i < sortedTags.length; i++) {
+    for (let j = i + 1; j < sortedTags.length; j++) {
+      const [, dataA] = sortedTags[i];
+      const [, dataB] = sortedTags[j];
       let shared = 0;
-      for (const vid of setA) {
-        if (setB.has(vid)) shared++;
+      for (const vid of dataA.videoIds) {
+        if (dataB.videoIds.has(vid)) shared++;
       }
-
       if (shared >= minCooccurrence) {
-        edges.push({ source: a, target: b, weight: shared });
+        edges.push({
+          source: sortedTags[i][0],
+          target: sortedTags[j][0],
+          weight: shared,
+        });
       }
     }
   }
 
-  // Also include within-video tag cliques (tags on same video strongly connected)
-  // We already have this from co-occurrence, but boost weight for high scores
-
-  return { nodes: Array.from(tagMap.values()), edges };
+  return { nodes, edges };
 }
 
-export async function getVideosForTag(tagId: string, limit = 20) {
+export async function getVideosForTag(
+  tagId: string,
+  limit = 20,
+  categoryNames?: string[]
+) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
   const userId = session.user.id;
 
+  const channelWhere: any = { users: { some: { id: userId } } };
+  if (categoryNames && categoryNames.length > 0) {
+    channelWhere.categories = { some: { name: { in: categoryNames } } };
+  }
+
   return prisma.video.findMany({
     where: {
-      channel: { users: { some: { id: userId } } },
+      channel: channelWhere,
       videoTags: { some: { tagId } },
     },
     orderBy: { publishedAt: "desc" },
@@ -114,4 +137,20 @@ export async function getVideosForTag(tagId: string, limit = 20) {
       },
     },
   });
+}
+
+export async function getUserCategories() {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Not authenticated");
+  const userId = session.user.id;
+
+  const categories = await prisma.category.findMany({
+    where: {
+      channels: { some: { users: { some: { id: userId } } } },
+    },
+    orderBy: { name: "asc" },
+    select: { name: true },
+  });
+
+  return categories.map((c) => c.name);
 }

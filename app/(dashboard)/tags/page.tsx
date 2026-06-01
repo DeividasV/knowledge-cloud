@@ -1,8 +1,11 @@
-import { getTagGraph } from "@/app/actions/tag-graph";
+import { getTagGraph, getUserCategories } from "@/app/actions/tag-graph";
 import { TagGraphClient } from "./tag-graph-client";
 
 export default async function TagsGraphPage() {
-  const graph = await getTagGraph(150, 2);
+  const [graph, categories] = await Promise.all([
+    getTagGraph(150, 2),
+    getUserCategories(),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -13,9 +16,7 @@ export default async function TagsGraphPage() {
         </p>
       </div>
 
-      <div className="rounded-xl border bg-card relative overflow-hidden" style={{ height: "calc(100vh - 200px)" }}>
-        <TagGraphClient initialGraph={graph} />
-      </div>
+      <TagGraphClient initialGraph={graph} categories={categories} />
     </div>
   );
 }
