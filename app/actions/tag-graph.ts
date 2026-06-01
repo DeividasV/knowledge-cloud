@@ -8,6 +8,8 @@ export interface TagGraphNode {
   name: string;
   videoCount: number;
   totalScore: number;
+  watchedCount: number;
+  unwatchedCount: number;
 }
 
 export interface TagGraphEdge {
@@ -47,6 +49,17 @@ export async function getTagGraph(
     return { nodes: [], edges: [] };
   }
 
+  // Get watch status for all videos in one query
+  const userVideos = await prisma.userVideo.findMany({
+    where: {
+      userId,
+      videoId: { in: Array.from(videoIdSet) },
+      status: { in: ["WATCHED", "NOT_INTERESTED"] },
+    },
+    select: { videoId: true, status: true },
+  });
+  const watchedSet = new Set(userVideos.map((uv) => uv.videoId));
+
   // Get all videoTags for these videos
   const videoTags = await prisma.videoTag.findMany({
     where: { videoId: { in: Array.from(videoIdSet) } },
@@ -56,20 +69,33 @@ export async function getTagGraph(
   // Group by tag
   const tagMap = new Map<
     string,
-    { name: string; videoIds: Set<string>; totalScore: number }
+    {
+      name: string;
+      videoIds: Set<string>;
+      totalScore: number;
+      watchedCount: number;
+      unwatchedCount: number;
+    }
   >();
 
   for (const vt of videoTags) {
-    const existing = tagMap.get(vt.tagId);
-    if (existing) {
-      existing.videoIds.add(vt.videoId);
-      existing.totalScore += vt.score;
-    } else {
-      tagMap.set(vt.tagId, {
+    let data = tagMap.get(vt.tagId);
+    if (!data) {
+      data = {
         name: vt.tag.name,
-        videoIds: new Set([vt.videoId]),
-        totalScore: vt.score,
-      });
+        videoIds: new Set(),
+        totalScore: 0,
+        watchedCount: 0,
+        unwatchedCount: 0,
+      };
+      tagMap.set(vt.tagId, data);
+    }
+    data.videoIds.add(vt.videoId);
+    data.totalScore += vt.score;
+    if (watchedSet.has(vt.videoId)) {
+      data.watchedCount++;
+    } else {
+      data.unwatchedCount++;
     }
   }
 
@@ -83,6 +109,8 @@ export async function getTagGraph(
     name: data.name,
     videoCount: data.videoIds.size,
     totalScore: Math.round(data.totalScore * 100) / 100,
+    watchedCount: data.watchedCount,
+    unwatchedCount: data.unwatchedCount,
   }));
 
   // Compute co-occurrence edges
@@ -134,6 +162,10 @@ export async function getVideosForTag(
       videoTags: {
         where: { tagId },
         select: { score: true },
+      },
+      userStates: {
+        where: { userId },
+        select: { status: true },
       },
     },
   });
