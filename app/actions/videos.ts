@@ -261,6 +261,21 @@ export async function fetchTranscriptsBatch(videoIds: string[]) {
   return results;
 }
 
+export async function getChannelVideosWithoutTranscript(channelId: string) {
+  await getUserId();
+
+  const videos = await prisma.video.findMany({
+    where: {
+      channelId,
+      transcript: null,
+    },
+    select: { id: true },
+    take: 500,
+  });
+
+  return videos.map((v) => v.id);
+}
+
 // ── Tag generation ──────────────────────────────────────────────────
 
 export async function generateVideoTags(videoId: string) {

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlaySquare, CheckCircle, RefreshCw } from "lucide-react";
+import { PlaySquare, CheckCircle, RefreshCw, FileText } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
 import { VideoQuickToggle } from "@/components/video-quick-toggle";
 import { VideoTranscript } from "@/components/video-transcript";
@@ -16,6 +16,7 @@ import { markAllChannelVideosAsWatched } from "@/app/actions/videos";
 import { syncChannelVideos } from "@/app/actions/sync";
 import { PendingButton } from "@/components/pending-button";
 import { ChannelCategoryManager } from "@/components/channel-category-manager";
+import { ChannelTranscriptFetch } from "@/components/channel-transcript-fetch";
 
 const PAGE_SIZE = 50;
 
@@ -204,7 +205,8 @@ export default async function ChannelPage({
             {channel.categories.length > 0 ? ` · ${channel.categories.map((c) => c.name).join(", ")}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <ChannelTranscriptFetch channelId={channelId} />
           <form action={syncChannelVideos.bind(null, channelId)}>
             <PendingButton variant="outline" size="sm" pendingText="Syncing...">
               <RefreshCw className="mr-2 h-4 w-4" />
