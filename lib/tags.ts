@@ -244,6 +244,8 @@ const JUNK_PHRASES = new Set([
   "выходы новых", "новых роликов", "выходы новых роликов",
   "моих видео", "развитие этого", "развитие этого канала",
   "поддержите выходы", "вне очереди",
+  "прямойэфир вокал", "вокал шортс", "музыка прямойэфир",
+  "пою для", "для тебя", "тебя музыка",
   // Description CTA fragments (EN)
   "check out", "subscribe to", "follow me", "follow us", "follow my",
   "buy now", "order now", "download now", "visit our", "visit my",
@@ -460,8 +462,6 @@ export function extractTags(
   // Title is the most reliable signal — repeat it for weight
   const titleText = title;
   const transcriptText = transcript || "";
-  const descriptionFallback = !transcript || transcript.length < 50;
-  const descriptionText = descriptionFallback && description ? description : "";
 
   // ── Extract title phrases ──
   const titleSentences = splitTextIntoSentences(titleText);
@@ -479,8 +479,8 @@ export function extractTags(
     }
   }
 
-  // ── Extract transcript+description phrases ──
-  const bodySentences = splitTextIntoSentences(transcriptText + " " + descriptionText);
+  // ── Extract transcript phrases ──
+  const bodySentences = splitTextIntoSentences(transcriptText);
   const bodyPhraseList: string[] = [];
 
   // Only unigrams from body text — body bigrams/trigrams are almost always noise
@@ -521,6 +521,11 @@ export function extractTags(
   // Score each phrase
   const scores = new Map<string, number>();
   for (const [phrase, tf] of totalFreq) {
+    // Reject multi-word phrases that appear on too many videos — they're formulaic
+    if (phrase.includes(" ")) {
+      const corpusCount = corpusPhrases.get(phrase.toLowerCase()) || 0;
+      if (corpusCount > 80) continue;
+    }
     const isFromTitle = titleFreq.has(phrase);
     scores.set(
       phrase,
@@ -559,7 +564,7 @@ export function buildCorpus(
 
   for (const { title, description, transcript } of videoTexts) {
     const titleSentences = splitTextIntoSentences(title);
-    const bodySentences = splitTextIntoSentences((transcript || "") + " " + (description || ""));
+    const bodySentences = splitTextIntoSentences(transcript || "");
     const docPhrases = new Set<string>();
 
     // Title n-grams (up to trigram)

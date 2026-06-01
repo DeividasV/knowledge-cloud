@@ -6,6 +6,7 @@ import { VideoStatus } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { fetchVideoTranscript } from "@/lib/transcript";
 import { extractTags, buildCorpus } from "@/lib/tags";
+import { extractTagsWithOllama } from "@/lib/ollama-tags";
 
 async function getUserId(): Promise<string> {
   const session = await auth();
@@ -289,16 +290,20 @@ export async function generateVideoTags(videoId: string) {
 
   if (!video) throw new Error("Video not found");
 
-  // Build corpus from all videos for TF-IDF
-  const allVideos = await prisma.video.findMany({
-    select: { title: true, description: true, transcript: true },
-  });
-  const corpus = buildCorpus(allVideos);
+  // Try LLM-powered extraction first (local Ollama)
+  let tagNames = await extractTagsWithOllama(video.title, video.transcript, maxTags);
 
-  const tagNames = extractTags(video.title, video.description, video.transcript, {
-    maxTags,
-    corpusPhrases: corpus,
-  });
+  // Fallback to TF-IDF if Ollama is not available
+  if (!tagNames || tagNames.length === 0) {
+    const allVideos = await prisma.video.findMany({
+      select: { title: true, description: true, transcript: true },
+    });
+    const corpus = buildCorpus(allVideos);
+    tagNames = extractTags(video.title, video.description, video.transcript, {
+      maxTags,
+      corpusPhrases: corpus,
+    });
+  }
 
   // Delete existing videoTag relations and create new ones with scores
   await prisma.videoTag.deleteMany({ where: { videoId } });
