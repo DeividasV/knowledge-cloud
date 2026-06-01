@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlaySquare, CheckCircle, Tag } from "lucide-react";
+import { PlaySquare, CheckCircle, Tag, RefreshCw } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
 import { VideoQuickToggle } from "@/components/video-quick-toggle";
 import { VideoTranscript } from "@/components/video-transcript";
@@ -12,6 +12,8 @@ import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
 import { markAllChannelVideosAsWatched, updateChannelCategory } from "@/app/actions/videos";
+import { syncChannelVideos } from "@/app/actions/sync";
+import { PendingButton } from "@/components/pending-button";
 
 const PAGE_SIZE = 50;
 
@@ -194,17 +196,25 @@ export default async function ChannelPage({
             {channel.category ? ` · ${channel.category}` : ""}
           </p>
         </div>
-        <form action={markAllAsWatched}>
-          <Button
-            type="submit"
-            variant="outline"
-            size="sm"
-            disabled={counts.unwatched === 0}
-          >
-            <CheckCircle className="mr-2 h-4 w-4" />
-            Mark all as watched
-          </Button>
-        </form>
+        <div className="flex items-center gap-2">
+          <form action={syncChannelVideos.bind(null, channelId)}>
+            <PendingButton variant="outline" size="sm" pendingText="Syncing...">
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Sync videos
+            </PendingButton>
+          </form>
+          <form action={markAllAsWatched}>
+            <PendingButton
+              variant="outline"
+              size="sm"
+              disabled={counts.unwatched === 0}
+              pendingText="Marking..."
+            >
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Mark all as watched
+            </PendingButton>
+          </form>
+        </div>
       </div>
 
       <form

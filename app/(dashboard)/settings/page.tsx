@@ -8,6 +8,7 @@ import { forceReauth } from "@/app/actions/auth";
 import { getTranscriptStats } from "@/app/actions/videos";
 import { SyncProgressButton } from "@/components/sync-progress";
 import { TranscriptBulkFetch } from "@/components/transcript-bulk-fetch";
+import { PendingButton } from "@/components/pending-button";
 import { RefreshCw, AlertTriangle, KeyRound, FileText } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 
@@ -98,10 +99,10 @@ export default async function SettingsPage() {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             <form action={syncSubscriptions}>
-              <Button type="submit" disabled={!hasYouTubeScope}>
+              <PendingButton disabled={!hasYouTubeScope} pendingText="Syncing...">
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Sync Subscriptions
-              </Button>
+              </PendingButton>
             </form>
           </div>
 
@@ -188,9 +189,9 @@ export default async function SettingsPage() {
                   </p>
                 </div>
                 <form action={syncChannelVideos.bind(null, channel.id)}>
-                  <Button type="submit" variant="ghost" size="sm" disabled={!hasYouTubeScope}>
+                  <PendingButton variant="ghost" size="sm" disabled={!hasYouTubeScope} pendingText="">
                     <RefreshCw className="h-4 w-4" />
-                  </Button>
+                  </PendingButton>
                 </form>
               </div>
             ))
