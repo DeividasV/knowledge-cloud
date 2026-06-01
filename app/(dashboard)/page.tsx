@@ -8,6 +8,7 @@ import Link from "next/link";
 import { VideoStatus } from "@/lib/types";
 import { VideoQuickToggle } from "@/components/video-quick-toggle";
 import { VideoTranscript } from "@/components/video-transcript";
+import { VideoTags } from "@/components/video-tags";
 
 function StatusBadge({ status }: { status: VideoStatus }) {
   // Map legacy WATCHING to UNWATCHED for display
@@ -184,6 +185,7 @@ export default async function DashboardPage() {
                       {new Date(video.publishedAt).toLocaleDateString()}
                     </span>
                   </div>
+                  <VideoTags videoId={video.id} tags={video.tags} />
                   <VideoTranscript
                     videoId={video.id}
                     transcript={video.transcript}
