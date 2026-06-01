@@ -140,6 +140,18 @@ export async function getDashboardStats() {
   };
 }
 
+// ── Channel category ────────────────────────────────────────────────
+
+export async function updateChannelCategory(channelId: string, category: string | null) {
+  await getUserId();
+  await prisma.channel.update({
+    where: { id: channelId },
+    data: { category: category || null },
+  });
+  revalidatePath("/channels");
+  revalidatePath("/channels/[channelId]");
+}
+
 // ── Transcript actions ──────────────────────────────────────────────
 
 export async function fetchAndStoreTranscript(videoId: string) {

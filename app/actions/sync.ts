@@ -10,6 +10,7 @@ import {
   fetchPlaylistItems,
   fetchVideoDetails,
   parseDuration,
+  getCategoryFromTopics,
 } from "@/lib/youtube";
 
 async function getAccessToken(): Promise<string> {
@@ -50,6 +51,8 @@ export async function syncSubscriptions() {
 
   for (const ch of channelDetails) {
     const uploadsPlaylistId = ch.contentDetails?.relatedPlaylists?.uploads;
+    const topicIds = ch.topicDetails?.topicIds as string[] | undefined;
+    const category = getCategoryFromTopics(topicIds);
     const data = {
       id: ch.id,
       title: ch.snippet.title,
@@ -57,6 +60,7 @@ export async function syncSubscriptions() {
       uploadsPlaylistId,
       subscriberCount: ch.statistics?.subscriberCount ? parseInt(ch.statistics.subscriberCount, 10) : null,
       videoCount: ch.statistics?.videoCount ? parseInt(ch.statistics.videoCount, 10) : null,
+      category,
       lastSyncedAt: new Date(),
     };
 

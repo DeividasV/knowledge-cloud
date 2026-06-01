@@ -1,5 +1,52 @@
 const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
 
+// Map YouTube topic IDs to human-readable categories
+const TOPIC_TO_CATEGORY: Record<string, string> = {
+  "/m/04rlf": "Music",
+  "/m/02jjt": "Entertainment",
+  "/m/019_rr": "Lifestyle",
+  "/m/07c1v": "Technology",
+  "/m/098wr": "Science",
+  "/m/01k8wb": "Education",
+  "/m/032tl": "Fashion",
+  "/m/02wbm": "Food",
+  "/m/03glg": "Hobbies",
+  "/m/068hy": "Pets",
+  "/m/041xxh": "Travel",
+  "/m/07bxq": "Travel",
+  "/m/04q1x3q": "Sports",
+  "/m/06ntj": "Sports",
+  "/m/0bzvm2": "Gaming",
+  "/m/025zzc": "Gaming",
+  "/m/0403l3g": "Gaming",
+  "/m/0hvgt": "Gaming",
+  "/m/01h6rj": "Motorsport",
+  "/m/0204fg": "Aviation",
+  "/m/09s1f": "Business",
+  "/m/01sjng": "Finance",
+  "/m/0404d": "Politics",
+  "/m/01h404": "Health",
+  "/m/0kt51": "Health",
+  "/m/05qjc": "Arts",
+  "/m/06cqb": "Education",
+  "/m/0137_0": "Podcasts",
+  "/m/0l14md": "Technology",
+  "/m/07bs0": "Technology",
+  "/m/0f2f9": "Entertainment",
+  "/m/03_d0": "Entertainment",
+  "/m/0h2r6": "Vehicles",
+  "/m/08q1tg": "DIY",
+};
+
+export function getCategoryFromTopics(topicIds?: string[]): string | undefined {
+  if (!topicIds || topicIds.length === 0) return undefined;
+  for (const id of topicIds) {
+    const cat = TOPIC_TO_CATEGORY[id];
+    if (cat) return cat;
+  }
+  return undefined;
+}
+
 export async function fetchSubscriptions(accessToken: string, pageToken?: string) {
   const params = new URLSearchParams({
     part: "snippet",
@@ -26,7 +73,7 @@ export async function fetchSubscriptions(accessToken: string, pageToken?: string
 export async function fetchChannelDetails(accessToken: string, channelIds: string[]) {
   if (channelIds.length === 0) return { items: [] };
   const params = new URLSearchParams({
-    part: "snippet,contentDetails,statistics",
+    part: "snippet,contentDetails,statistics,topicDetails",
     id: channelIds.join(","),
     maxResults: "50",
   });

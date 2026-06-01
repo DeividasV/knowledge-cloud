@@ -63,6 +63,7 @@ model Channel {
   uploadsPlaylistId String?
   subscriberCount   Int?
   videoCount        Int?
+  category          String?
   videos            Video[]
   users             User[]
   lastSyncedAt      DateTime?

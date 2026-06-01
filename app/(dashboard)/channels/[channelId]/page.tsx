@@ -4,14 +4,14 @@ import { notFound } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlaySquare, CheckCircle } from "lucide-react";
+import { PlaySquare, CheckCircle, Tag } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
 import { VideoQuickToggle } from "@/components/video-quick-toggle";
 import { VideoTranscript } from "@/components/video-transcript";
 import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
-import { markAllChannelVideosAsWatched } from "@/app/actions/videos";
+import { markAllChannelVideosAsWatched, updateChannelCategory } from "@/app/actions/videos";
 
 const PAGE_SIZE = 50;
 
@@ -190,6 +190,7 @@ export default async function ChannelPage({
           <h1 className="text-3xl font-bold tracking-tight">{channel.title}</h1>
           <p className="text-muted-foreground mt-1">
             {counts.all} videos · {counts.unwatched} unwatched
+            {channel.category ? ` · ${channel.category}` : ""}
           </p>
         </div>
         <form action={markAllAsWatched}>
@@ -204,6 +205,26 @@ export default async function ChannelPage({
           </Button>
         </form>
       </div>
+
+      <form
+        action={async (formData: FormData) => {
+          "use server";
+          const cat = formData.get("category") as string;
+          await updateChannelCategory(channelId, cat || null);
+        }}
+        className="flex items-center gap-2"
+      >
+        <Tag className="h-4 w-4 text-muted-foreground" />
+        <input
+          name="category"
+          defaultValue={channel.category || ""}
+          placeholder="Category..."
+          className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 w-40"
+        />
+        <Button type="submit" variant="ghost" size="sm">
+          Save
+        </Button>
+      </form>
 
       <SearchInput placeholder="Search videos by title..." />
 
