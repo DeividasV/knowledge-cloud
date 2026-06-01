@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { VideoStatus } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { fetchVideoTranscript } from "@/lib/transcript";
+import { extractTags, buildCorpus } from "@/lib/tags";
 
 async function getUserId(): Promise<string> {
   const session = await auth();
@@ -85,6 +86,7 @@ export async function getRecentVideos(limit = 10) {
     take: limit,
     include: {
       channel: true,
+      tags: true,
       userStates: {
         where: { userId },
       },
@@ -245,4 +247,122 @@ export async function fetchTranscriptsBatch(videoIds: string[]) {
   revalidatePath("/videos");
   revalidatePath("/channels/[channelId]");
   return results;
+}
+
+// ── Tag generation ──────────────────────────────────────────────────
+
+export async function generateVideoTags(videoId: string) {
+  await getUserId();
+
+  const video = await prisma.video.findUnique({
+    where: { id: videoId },
+    include: { tags: true },
+  });
+
+  if (!video) throw new Error("Video not found");
+
+  // Build corpus from all videos for TF-IDF
+  const allVideos = await prisma.video.findMany({
+    select: { title: true, description: true, transcript: true },
+  });
+  const corpus = buildCorpus(allVideos);
+
+  const tagNames = extractTags(video.title, video.description, video.transcript, {
+    maxTags: 8,
+    corpusPhrases: corpus,
+  });
+
+  // Ensure tags exist and connect to video
+  const tagIds: string[] = [];
+  for (const name of tagNames) {
+    const tag = await prisma.tag.upsert({
+      where: { name },
+      create: { name },
+      update: {},
+    });
+    tagIds.push(tag.id);
+  }
+
+  await prisma.video.update({
+    where: { id: videoId },
+    data: {
+      tags: { set: tagIds.map((id) => ({ id })) },
+    },
+  });
+
+  revalidatePath("/videos");
+  revalidatePath("/channels/[channelId]");
+  return { success: true, tags: tagNames };
+}
+
+export async function generateTagsForUntagged(limit = 100) {
+  await getUserId();
+
+  // Find videos without tags
+  const untaggedVideos = await prisma.video.findMany({
+    where: {
+      tags: { none: {} },
+      OR: [
+        { transcript: { not: null } },
+        { description: { not: null } },
+      ],
+    },
+    select: { id: true, title: true, description: true, transcript: true },
+    take: limit,
+  });
+
+  if (untaggedVideos.length === 0) {
+    return { processed: 0, tags: [] };
+  }
+
+  // Build corpus from all videos for TF-IDF
+  const allVideos = await prisma.video.findMany({
+    select: { title: true, description: true, transcript: true },
+  });
+  const corpus = buildCorpus(allVideos);
+
+  const results = [];
+  for (const video of untaggedVideos) {
+    const tagNames = extractTags(video.title, video.description, video.transcript, {
+      maxTags: 8,
+      corpusPhrases: corpus,
+    });
+
+    if (tagNames.length > 0) {
+      const tagIds: string[] = [];
+      for (const name of tagNames) {
+        const tag = await prisma.tag.upsert({
+          where: { name },
+          create: { name },
+          update: {},
+        });
+        tagIds.push(tag.id);
+      }
+
+      await prisma.video.update({
+        where: { id: video.id },
+        data: {
+          tags: { set: tagIds.map((id) => ({ id })) },
+        },
+      });
+
+      results.push({ videoId: video.id, tags: tagNames });
+    }
+  }
+
+  revalidatePath("/videos");
+  revalidatePath("/channels/[channelId]");
+  return { processed: untaggedVideos.length, generated: results.length, results };
+}
+
+export async function getTagStats() {
+  await getUserId();
+
+  const [totalTags, taggedVideos, untaggedVideos] = await Promise.all([
+    prisma.tag.count(),
+    prisma.video.count({ where: { tags: { some: {} } } }),
+    prisma.video.count({ where: { tags: { none: {} } } }),
+  ]);
+
+  return { totalTags, taggedVideos, untaggedVideos };
 }

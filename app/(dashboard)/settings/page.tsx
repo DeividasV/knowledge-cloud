@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { syncSubscriptions, syncChannelVideos } from "@/app/actions/sync";
 import { forceReauth } from "@/app/actions/auth";
-import { getTranscriptStats } from "@/app/actions/videos";
+import { getTranscriptStats, getTagStats, generateTagsForUntagged } from "@/app/actions/videos";
 import { SyncProgressButton } from "@/components/sync-progress";
 import { TranscriptBulkFetch } from "@/components/transcript-bulk-fetch";
 import { PendingButton } from "@/components/pending-button";
-import { RefreshCw, AlertTriangle, KeyRound, FileText } from "lucide-react";
+import { TagBulkGenerate } from "@/components/tag-bulk-generate";
+import { RefreshCw, AlertTriangle, KeyRound, FileText, Sparkles } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 
 export default async function SettingsPage() {
@@ -161,6 +162,21 @@ export default async function SettingsPage() {
               </p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            Auto Tags
+          </CardTitle>
+          <CardDescription>
+            Generate tags from title, description, and transcript using lightweight NLP.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <TagBulkGenerate />
         </CardContent>
       </Card>
 

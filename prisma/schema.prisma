@@ -88,6 +88,13 @@ model Video {
   transcript          String?
   transcriptFetchedAt DateTime?
   category            String?
+  tags                Tag[]
+}
+
+model Tag {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  videos Video[]
 }
 
 model UserVideo {

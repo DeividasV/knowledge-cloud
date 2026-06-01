@@ -6,6 +6,7 @@ import { PlaySquare } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
 import { VideoQuickToggle } from "@/components/video-quick-toggle";
 import { VideoTranscript } from "@/components/video-transcript";
+import { VideoTags } from "@/components/video-tags";
 import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
@@ -56,6 +57,7 @@ export default async function VideosPage({
       take: PAGE_SIZE,
       include: {
         channel: true,
+        tags: true,
         userStates: {
           where: { userId },
         },
@@ -141,6 +143,7 @@ export default async function VideosPage({
                     (video.userStates[0]?.status as VideoStatus) || "UNWATCHED"
                   }
                 />
+                <VideoTags videoId={video.id} tags={video.tags} />
                 <VideoTranscript
                   videoId={video.id}
                   transcript={video.transcript}
@@ -235,6 +238,7 @@ async function FilteredVideos({
       take: PAGE_SIZE,
       include: {
         channel: true,
+        tags: true,
         userStates: { where: { userId } },
       },
     }),
@@ -295,6 +299,7 @@ async function FilteredVideos({
                 videoId={video.id}
                 currentStatus={status}
               />
+              <VideoTags videoId={video.id} tags={video.tags} />
               <VideoTranscript
                 videoId={video.id}
                 transcript={video.transcript}
