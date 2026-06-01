@@ -88,13 +88,24 @@ model Video {
   transcript          String?
   transcriptFetchedAt DateTime?
   category            String?
-  tags                Tag[]
+  videoTags           VideoTag[]
 }
 
 model Tag {
-  id     String  @id @default(cuid())
-  name   String  @unique
-  videos Video[]
+  id        String     @id @default(cuid())
+  name      String     @unique
+  videoTags VideoTag[]
+}
+
+model VideoTag {
+  id      String @id @default(cuid())
+  videoId String
+  tagId   String
+  score   Float
+  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, tagId])
 }
 
 model UserVideo {

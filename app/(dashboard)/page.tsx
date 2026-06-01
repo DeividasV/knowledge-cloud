@@ -185,7 +185,7 @@ export default async function DashboardPage() {
                       {new Date(video.publishedAt).toLocaleDateString()}
                     </span>
                   </div>
-                  <VideoTags videoId={video.id} tags={video.tags} />
+                  <VideoTags videoId={video.id} tags={video.videoTags.map((vt) => ({ id: vt.tag.id, name: vt.tag.name, score: vt.score }))} />
                   <VideoTranscript
                     videoId={video.id}
                     transcript={video.transcript}

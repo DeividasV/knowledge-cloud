@@ -86,7 +86,10 @@ export async function getRecentVideos(limit = 10) {
     take: limit,
     include: {
       channel: true,
-      tags: true,
+      videoTags: {
+        include: { tag: true },
+        orderBy: { score: "desc" },
+      },
       userStates: {
         where: { userId },
       },
@@ -256,7 +259,7 @@ export async function generateVideoTags(videoId: string) {
 
   const video = await prisma.video.findUnique({
     where: { id: videoId },
-    include: { tags: true },
+    include: { videoTags: { include: { tag: true } } },
   });
 
   if (!video) throw new Error("Video not found");
@@ -272,23 +275,24 @@ export async function generateVideoTags(videoId: string) {
     corpusPhrases: corpus,
   });
 
-  // Ensure tags exist and connect to video
-  const tagIds: string[] = [];
-  for (const name of tagNames) {
+  // Delete existing videoTag relations and create new ones with scores
+  await prisma.videoTag.deleteMany({ where: { videoId } });
+
+  for (const { name, score } of tagNames) {
     const tag = await prisma.tag.upsert({
       where: { name },
       create: { name },
       update: {},
     });
-    tagIds.push(tag.id);
-  }
 
-  await prisma.video.update({
-    where: { id: videoId },
-    data: {
-      tags: { set: tagIds.map((id) => ({ id })) },
-    },
-  });
+    await prisma.videoTag.create({
+      data: {
+        videoId,
+        tagId: tag.id,
+        score,
+      },
+    });
+  }
 
   revalidatePath("/videos");
   revalidatePath("/channels/[channelId]");
@@ -301,7 +305,7 @@ export async function generateTagsForUntagged(limit = 100) {
   // Find videos without tags
   const untaggedVideos = await prisma.video.findMany({
     where: {
-      tags: { none: {} },
+      videoTags: { none: {} },
       OR: [
         { transcript: { not: null } },
         { description: { not: null } },
@@ -323,30 +327,31 @@ export async function generateTagsForUntagged(limit = 100) {
 
   const results = [];
   for (const video of untaggedVideos) {
-    const tagNames = extractTags(video.title, video.description, video.transcript, {
+    const extractedTags = extractTags(video.title, video.description, video.transcript, {
       maxTags: 8,
       corpusPhrases: corpus,
     });
 
-    if (tagNames.length > 0) {
-      const tagIds: string[] = [];
-      for (const name of tagNames) {
+    if (extractedTags.length > 0) {
+      await prisma.videoTag.deleteMany({ where: { videoId: video.id } });
+
+      for (const { name, score } of extractedTags) {
         const tag = await prisma.tag.upsert({
           where: { name },
           create: { name },
           update: {},
         });
-        tagIds.push(tag.id);
+
+        await prisma.videoTag.create({
+          data: {
+            videoId: video.id,
+            tagId: tag.id,
+            score,
+          },
+        });
       }
 
-      await prisma.video.update({
-        where: { id: video.id },
-        data: {
-          tags: { set: tagIds.map((id) => ({ id })) },
-        },
-      });
-
-      results.push({ videoId: video.id, tags: tagNames });
+      results.push({ videoId: video.id, tags: extractedTags.map((t) => t.name) });
     }
   }
 
@@ -380,30 +385,31 @@ export async function generateTagsForAll(limit = 100) {
 
   const results = [];
   for (const video of videos) {
-    const tagNames = extractTags(video.title, video.description, video.transcript, {
+    const extractedTags = extractTags(video.title, video.description, video.transcript, {
       maxTags: 8,
       corpusPhrases: corpus,
     });
 
-    if (tagNames.length > 0) {
-      const tagIds: string[] = [];
-      for (const name of tagNames) {
+    if (extractedTags.length > 0) {
+      await prisma.videoTag.deleteMany({ where: { videoId: video.id } });
+
+      for (const { name, score } of extractedTags) {
         const tag = await prisma.tag.upsert({
           where: { name },
           create: { name },
           update: {},
         });
-        tagIds.push(tag.id);
+
+        await prisma.videoTag.create({
+          data: {
+            videoId: video.id,
+            tagId: tag.id,
+            score,
+          },
+        });
       }
 
-      await prisma.video.update({
-        where: { id: video.id },
-        data: {
-          tags: { set: tagIds.map((id) => ({ id })) },
-        },
-      });
-
-      results.push({ videoId: video.id, tags: tagNames });
+      results.push({ videoId: video.id, tags: extractedTags.map((t) => t.name) });
     }
   }
 
@@ -417,8 +423,8 @@ export async function getTagStats() {
 
   const [totalTags, taggedVideos, untaggedVideos] = await Promise.all([
     prisma.tag.count(),
-    prisma.video.count({ where: { tags: { some: {} } } }),
-    prisma.video.count({ where: { tags: { none: {} } } }),
+    prisma.video.count({ where: { videoTags: { some: {} } } }),
+    prisma.video.count({ where: { videoTags: { none: {} } } }),
   ]);
 
   return { totalTags, taggedVideos, untaggedVideos };

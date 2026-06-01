@@ -73,7 +73,10 @@ export default async function ChannelPage({
       skip,
       take: PAGE_SIZE,
       include: {
-        tags: true,
+        videoTags: {
+          include: { tag: true },
+          orderBy: { score: "desc" },
+        },
         userStates: {
           where: { userId },
         },
@@ -176,7 +179,7 @@ export default async function ChannelPage({
                     videoId={video.id}
                     currentStatus={currentStatus}
                   />
-                  <VideoTags videoId={video.id} tags={video.tags} />
+                  <VideoTags videoId={video.id} tags={video.videoTags.map((vt) => ({ id: vt.tag.id, name: vt.tag.name, score: vt.score }))} />
                   <VideoTranscript
                     videoId={video.id}
                     transcript={video.transcript}
@@ -323,7 +326,10 @@ async function FilteredVideoList({
       skip,
       take: PAGE_SIZE,
       include: {
-        tags: true,
+        videoTags: {
+          include: { tag: true },
+          orderBy: { score: "desc" },
+        },
         userStates: { where: { userId } },
       },
     }),
@@ -377,7 +383,7 @@ async function FilteredVideoList({
                 </p>
               </div>
               <VideoStatusToggle videoId={video.id} currentStatus={status} />
-              <VideoTags videoId={video.id} tags={video.tags} />
+              <VideoTags videoId={video.id} tags={video.videoTags.map((vt) => ({ id: vt.tag.id, name: vt.tag.name, score: vt.score }))} />
               <VideoTranscript
                 videoId={video.id}
                 transcript={video.transcript}

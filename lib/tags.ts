@@ -160,14 +160,19 @@ function calculateTfIdf(phrases: string[], corpusPhrases: Map<string, number>): 
 /**
  * Extract tags from video text using lightweight NLP (no ML models).
  * Combines title, description, and transcript.
- * Returns top N most distinctive tags.
+ * Returns top N most distinctive tags with scores.
  */
+export interface TagResult {
+  name: string;
+  score: number;
+}
+
 export function extractTags(
   title: string,
   description: string | null,
   transcript: string | null,
   options: { maxTags?: number; corpusPhrases?: Map<string, number> } = {}
-): string[] {
+): TagResult[] {
   const { maxTags = 8, corpusPhrases = new Map() } = options;
 
   const combined = [title, description || "", transcript || ""].join(" ");
@@ -191,13 +196,12 @@ export function extractTags(
 
   // Return top tags, preferring variety (avoid near-duplicates)
   const sorted = Array.from(scores.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([phrase]) => phrase);
+    .sort((a, b) => b[1] - a[1]);
 
-  const result: string[] = [];
+  const result: TagResult[] = [];
   const seen = new Set<string>();
 
-  for (const phrase of sorted) {
+  for (const [phrase, score] of sorted) {
     if (result.length >= maxTags) break;
     const normalized = phrase.toLowerCase();
     // Skip if this phrase is a substring of an already selected longer phrase
@@ -205,7 +209,7 @@ export function extractTags(
       s.includes(normalized) || normalized.includes(s)
     );
     if (!isSubset || seen.size === 0) {
-      result.push(phrase);
+      result.push({ name: phrase, score: Math.round(score * 100) / 100 });
       seen.add(normalized);
     }
   }
