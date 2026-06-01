@@ -11,7 +11,7 @@ import { YouTubeIcon } from "@/components/youtube-icon";
 
 export default async function SettingsPage() {
   const session = await auth();
-  const userId = session!.user!.id;
+  const userId = session!.user!.id!;
 
   const user = await prisma.user.findUnique({
     where: { id: userId },

@@ -8,6 +8,7 @@ import { YouTubeIcon } from "@/components/youtube-icon";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { VideoStatus } from "@/lib/types";
+import { VideoQuickToggle } from "@/components/video-quick-toggle";
 
 function StatusBadge({ status }: { status: VideoStatus }) {
   const variants: Record<VideoStatus, string> = {
@@ -142,6 +143,14 @@ export default async function DashboardPage() {
                       <PlaySquare className="h-8 w-8 text-muted-foreground" />
                     </div>
                   )}
+                  <div className="absolute top-2 right-2">
+                    <VideoQuickToggle
+                      videoId={video.id}
+                      currentStatus={
+                        (video.userStates[0]?.status as VideoStatus) || "UNWATCHED"
+                      }
+                    />
+                  </div>
                 </div>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-2">

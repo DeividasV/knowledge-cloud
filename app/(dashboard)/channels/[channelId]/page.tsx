@@ -2,55 +2,67 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlaySquare, ArrowLeft, CheckCheck } from "lucide-react";
-import Link from "next/link";
+import { PlaySquare, CheckCircle } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
-import { markAllChannelVideosAsWatched } from "@/app/actions/videos";
+import { VideoQuickToggle } from "@/components/video-quick-toggle";
 import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
-import { buttonVariants } from "@/components/ui/button";
+import { SearchInput } from "@/components/search-input";
+import { markAllChannelVideosAsWatched } from "@/app/actions/videos";
 
 const PAGE_SIZE = 50;
 
-export default async function ChannelDetailPage({
+export default async function ChannelPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ channelId: string | undefined }>;
-  searchParams: Promise<{ page?: string }>;
+  params: Promise<{ channelId: string }>;
+  searchParams: Promise<{ page?: string; status?: string; q?: string }>;
 }) {
-  const p = await params;
-  const cid = p.channelId;
-  if (!cid) {
-    notFound();
-    return null;
-  }
-  const channelId = cid;
-
-  const { page: pageStr } = await searchParams;
-  const page = Math.max(1, parseInt(pageStr || "1", 10));
-
   const session = await auth();
-  const userId = session!.user!.id;
+  const userId = session!.user!.id!;
 
-  const channel = await prisma.channel.findUnique({
-    where: { id: channelId },
-  });
-
-  if (!channel) {
-    notFound();
-    return null;
-  }
-
+  const { channelId } = await params;
+  const { page: pageStr, status: statusFilter, q: query } = await searchParams;
+  const page = Math.max(1, parseInt(pageStr || "1", 10));
   const skip = (page - 1) * PAGE_SIZE;
 
+  const channel = await prisma.channel.findFirst({
+    where: {
+      id: channelId,
+      users: { some: { id: userId } },
+    },
+  });
+
+  if (!channel) notFound();
+
+  const searchWhere = query
+    ? { title: { contains: query, mode: "insensitive" as const } }
+    : {};
+
+  const statusWhere =
+    statusFilter && ["UNWATCHED", "WATCHING", "WATCHED"].includes(statusFilter)
+      ? statusFilter
+      : undefined;
+
+  const baseWhere = {
+    channelId,
+    ...searchWhere,
+    ...(statusWhere
+      ? {
+          userStates: {
+            some: { userId, status: statusWhere },
+          },
+        }
+      : {}),
+  };
+
   const [totalVideos, videos] = await Promise.all([
-    prisma.video.count({ where: { channelId: channelId } }),
+    prisma.video.count({ where: baseWhere }),
     prisma.video.findMany({
-      where: { channelId: channelId },
+      where: baseWhere,
       orderBy: { publishedAt: "desc" },
       skip,
       take: PAGE_SIZE,
@@ -89,84 +101,152 @@ export default async function ChannelDetailPage({
     },
   });
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/channels" className={buttonVariants({ variant: "outline", size: "icon" })}>
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight truncate">{channel.title}</h1>
-          <div className="flex items-center gap-2 mt-1">
-            <Badge variant="secondary">{totalVideos} videos</Badge>
-            {channel.subscriberCount && (
-              <Badge variant="outline">
-                {Intl.NumberFormat().format(channel.subscriberCount)} subscribers
-              </Badge>
-            )}
-          </div>
+  const counts = {
+    all: totalVideos,
+    unwatched: unwatchedCount,
+    watching: watchingCount,
+    watched: watchedCount,
+  };
+
+  const markAllAsWatched = markAllChannelVideosAsWatched.bind(null, channelId);
+
+  function VideoList({ items }: { items: typeof videos }) {
+    if (items.length === 0) {
+      return (
+        <div className="text-center py-12 text-muted-foreground">
+          {query ? `No videos matching "${query}".` : "No videos found."}
         </div>
-        <form action={markAllChannelVideosAsWatched.bind(null, channelId)}>
-          <Button type="submit" variant="outline" size="sm">
-            <CheckCheck className="mr-2 h-4 w-4" />
-            Mark all watched
-          </Button>
-        </form>
-      </div>
+      );
+    }
 
-      <Tabs defaultValue="all">
-        <TabsList>
-          <TabsTrigger value="all">All ({totalVideos})</TabsTrigger>
-          <TabsTrigger value="unwatched">Unwatched ({unwatchedCount})</TabsTrigger>
-          <TabsTrigger value="watching">Watching ({watchingCount})</TabsTrigger>
-          <TabsTrigger value="watched">Watched ({watchedCount})</TabsTrigger>
-        </TabsList>
-        <TabsContent value="all" className="mt-4">
-          {/* @ts-ignore Next.js 16 type bug with route params in JSX */}
-          <VideoList videos={videos} totalPages={totalPages} page={page} channelId={channelId} />
-        </TabsContent>
-        <TabsContent value="unwatched" className="mt-4">
-          {/* @ts-ignore Next.js 16 type bug with route params in JSX */}
-          <FilteredVideoList channelId={channelId} userId={userId} status="UNWATCHED" page={page} />
-        </TabsContent>
-        <TabsContent value="watching" className="mt-4">
-          {/* @ts-ignore Next.js 16 type bug with route params in JSX */}
-          <FilteredVideoList channelId={channelId} userId={userId} status="WATCHING" page={page} />
-        </TabsContent>
-        <TabsContent value="watched" className="mt-4">
-          {/* @ts-ignore Next.js 16 type bug with route params in JSX */}
-          <FilteredVideoList channelId={channelId} userId={userId} status="WATCHED" page={page} />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
-function VideoList({
-  videos,
-  totalPages,
-  page,
-  channelId,
-}: {
-  videos: any[];
-  totalPages: number;
-  page: number;
-  channelId: string;
-}) {
-  if (videos.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">No videos found.</div>
+      <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {items.map((video) => {
+            const currentStatus =
+              (video.userStates[0]?.status as VideoStatus) || "UNWATCHED";
+            return (
+              <Card key={video.id} className="overflow-hidden group">
+                <div className="aspect-video bg-muted relative">
+                  {video.thumbnail ? (
+                    <img
+                      src={video.thumbnail}
+                      alt={video.title}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <PlaySquare className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="absolute top-2 right-2">
+                    <VideoQuickToggle
+                      videoId={video.id}
+                      currentStatus={currentStatus}
+                    />
+                  </div>
+                </div>
+                <CardContent className="p-4 space-y-3">
+                  <div>
+                    <h3
+                      className="font-medium text-sm line-clamp-2"
+                      title={video.title}
+                    >
+                      {video.title}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(video.publishedAt).toLocaleDateString()}
+                      {video.durationSec ? (
+                        <span className="ml-2">
+                          {Math.floor(video.durationSec / 60)}:
+                          {String(video.durationSec % 60).padStart(2, "0")}
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
+                  <VideoStatusToggle
+                    videoId={video.id}
+                    currentStatus={currentStatus}
+                  />
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+        <Pagination page={page} totalPages={totalPages} basePath={`/channels/${channelId}`} />
+      </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {videos.map((video) => (
-          <VideoCard key={video.id} video={video} />
-        ))}
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">{channel.title}</h1>
+          <p className="text-muted-foreground mt-1">
+            {counts.all} videos · {counts.unwatched} unwatched
+          </p>
+        </div>
+        <form action={markAllAsWatched}>
+          <Button
+            type="submit"
+            variant="outline"
+            size="sm"
+            disabled={counts.unwatched === 0}
+          >
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Mark all as watched
+          </Button>
+        </form>
       </div>
-      <Pagination page={page} totalPages={totalPages} basePath={`/channels/${channelId}`} />
+
+      <SearchInput placeholder="Search videos by title..." />
+
+      <Tabs defaultValue="all">
+        <TabsList>
+          <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
+          <TabsTrigger value="unwatched">
+            Unwatched ({counts.unwatched})
+          </TabsTrigger>
+          <TabsTrigger value="watching">
+            Watching ({counts.watching})
+          </TabsTrigger>
+          <TabsTrigger value="watched">Watched ({counts.watched})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="all" className="mt-4">
+          <VideoList items={videos} />
+        </TabsContent>
+        <TabsContent value="unwatched" className="mt-4">
+          {/* @ts-ignore Next.js 16 async component JSX type bug */}
+          <FilteredVideoList
+            channelId={channelId}
+            userId={userId}
+            status="UNWATCHED"
+            page={page}
+            query={query}
+          />
+        </TabsContent>
+        <TabsContent value="watching" className="mt-4">
+          {/* @ts-ignore Next.js 16 async component JSX type bug */}
+          <FilteredVideoList
+            channelId={channelId}
+            userId={userId}
+            status="WATCHING"
+            page={page}
+            query={query}
+          />
+        </TabsContent>
+        <TabsContent value="watched" className="mt-4">
+          {/* @ts-ignore Next.js 16 async component JSX type bug */}
+          <FilteredVideoList
+            channelId={channelId}
+            userId={userId}
+            status="WATCHED"
+            page={page}
+            query={query}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -176,18 +256,25 @@ async function FilteredVideoList({
   userId,
   status,
   page,
+  query,
 }: {
   channelId: string;
   userId: string;
   status: VideoStatus;
   page: number;
+  query?: string;
 }) {
   const skip = (page - 1) * PAGE_SIZE;
+
+  const searchWhere = query
+    ? { title: { contains: query, mode: "insensitive" as const } }
+    : {};
 
   const statusFilter =
     status === "UNWATCHED"
       ? {
           channelId,
+          ...searchWhere,
           NOT: {
             userStates: {
               some: { userId, status: { in: ["WATCHING", "WATCHED"] } },
@@ -196,6 +283,7 @@ async function FilteredVideoList({
         }
       : {
           channelId,
+          ...searchWhere,
           userStates: { some: { userId, status } },
         };
 
@@ -217,7 +305,7 @@ async function FilteredVideoList({
   if (videos.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        No videos in this category.
+        {query ? `No videos matching "${query}".` : "No videos in this category."}
       </div>
     );
   }
@@ -226,52 +314,44 @@ async function FilteredVideoList({
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {videos.map((video) => (
-          <VideoCard key={video.id} video={video} />
+          <Card key={video.id} className="overflow-hidden group">
+            <div className="aspect-video bg-muted relative">
+              {video.thumbnail ? (
+                <img
+                  src={video.thumbnail}
+                  alt={video.title}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center">
+                  <PlaySquare className="h-8 w-8 text-muted-foreground" />
+                </div>
+              )}
+              <div className="absolute top-2 right-2">
+                <VideoQuickToggle videoId={video.id} currentStatus={status} />
+              </div>
+            </div>
+            <CardContent className="p-4 space-y-3">
+              <div>
+                <h3 className="font-medium text-sm line-clamp-2" title={video.title}>
+                  {video.title}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {new Date(video.publishedAt).toLocaleDateString()}
+                  {video.durationSec ? (
+                    <span className="ml-2">
+                      {Math.floor(video.durationSec / 60)}:
+                      {String(video.durationSec % 60).padStart(2, "0")}
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+              <VideoStatusToggle videoId={video.id} currentStatus={status} />
+            </CardContent>
+          </Card>
         ))}
       </div>
       <Pagination page={page} totalPages={totalPages} basePath={`/channels/${channelId}`} />
     </div>
-  );
-}
-
-function VideoCard({ video }: { video: any }) {
-  return (
-    <Card className="overflow-hidden">
-      <div className="aspect-video bg-muted relative">
-        {video.thumbnail ? (
-          <img
-            src={video.thumbnail}
-            alt={video.title}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <PlaySquare className="h-8 w-8 text-muted-foreground" />
-          </div>
-        )}
-      </div>
-      <CardContent className="p-4 space-y-3">
-        <div>
-          <h3 className="font-medium text-sm line-clamp-2" title={video.title}>
-            {video.title}
-          </h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            {new Date(video.publishedAt).toLocaleDateString()}
-            {video.durationSec ? (
-              <span className="ml-2">
-                {Math.floor(video.durationSec / 60)}:
-                {String(video.durationSec % 60).padStart(2, "0")}
-              </span>
-            ) : null}
-          </p>
-        </div>
-        <VideoStatusToggle
-          videoId={video.id}
-          currentStatus={
-            (video.userStates[0]?.status as VideoStatus) || "UNWATCHED"
-          }
-        />
-      </CardContent>
-    </Card>
   );
 }

@@ -4,22 +4,30 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlaySquare } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
+import { VideoQuickToggle } from "@/components/video-quick-toggle";
 import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
+import { SearchInput } from "@/components/search-input";
 
 const PAGE_SIZE = 50;
 
 export default async function VideosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; status?: string }>;
+  searchParams: Promise<{ page?: string; status?: string; q?: string }>;
 }) {
   const session = await auth();
-  const userId = session!.user!.id;
+  const userId = session!.user!.id!;
 
-  const { page: pageStr, status: statusFilter } = await searchParams;
+  const { page: pageStr, status: statusFilter, q: query } = await searchParams;
   const page = Math.max(1, parseInt(pageStr || "1", 10));
   const skip = (page - 1) * PAGE_SIZE;
+
+  const searchWhere = query
+    ? {
+        title: { contains: query, mode: "insensitive" as const },
+      }
+    : {};
 
   const statusWhere =
     statusFilter && ["UNWATCHED", "WATCHING", "WATCHED"].includes(statusFilter)
@@ -28,6 +36,7 @@ export default async function VideosPage({
 
   const baseWhere = {
     channel: { users: { some: { id: userId } } },
+    ...searchWhere,
     ...(statusWhere
       ? {
           userStates: {
@@ -74,7 +83,7 @@ export default async function VideosPage({
     if (items.length === 0) {
       return (
         <div className="text-center py-12 text-muted-foreground">
-          No videos found.
+          {query ? `No videos matching "${query}".` : "No videos found."}
         </div>
       );
     }
@@ -83,7 +92,7 @@ export default async function VideosPage({
       <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {items.map((video) => (
-            <Card key={video.id} className="overflow-hidden">
+            <Card key={video.id} className="overflow-hidden group">
               <div className="aspect-video bg-muted relative">
                 {video.thumbnail ? (
                   <img
@@ -96,6 +105,14 @@ export default async function VideosPage({
                     <PlaySquare className="h-8 w-8 text-muted-foreground" />
                   </div>
                 )}
+                <div className="absolute top-2 right-2">
+                  <VideoQuickToggle
+                    videoId={video.id}
+                    currentStatus={
+                      (video.userStates[0]?.status as VideoStatus) || "UNWATCHED"
+                    }
+                  />
+                </div>
               </div>
               <CardContent className="p-4 space-y-3">
                 <div>
@@ -136,6 +153,8 @@ export default async function VideosPage({
         </p>
       </div>
 
+      <SearchInput placeholder="Search videos by title..." />
+
       <Tabs defaultValue="all">
         <TabsList>
           <TabsTrigger value="all">All ({totalVideos})</TabsTrigger>
@@ -148,15 +167,15 @@ export default async function VideosPage({
         </TabsContent>
         <TabsContent value="unwatched" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
-          <FilteredVideos userId={userId} status="UNWATCHED" page={page} />
+          <FilteredVideos userId={userId} status="UNWATCHED" page={page} query={query} />
         </TabsContent>
         <TabsContent value="watching" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
-          <FilteredVideos userId={userId} status="WATCHING" page={page} />
+          <FilteredVideos userId={userId} status="WATCHING" page={page} query={query} />
         </TabsContent>
         <TabsContent value="watched" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
-          <FilteredVideos userId={userId} status="WATCHED" page={page} />
+          <FilteredVideos userId={userId} status="WATCHED" page={page} query={query} />
         </TabsContent>
       </Tabs>
     </div>
@@ -167,25 +186,40 @@ async function FilteredVideos({
   userId,
   status,
   page,
+  query,
 }: {
   userId: string;
   status: VideoStatus;
   page: number;
+  query?: string;
 }) {
   const skip = (page - 1) * PAGE_SIZE;
 
+  const searchWhere = query
+    ? { title: { contains: query, mode: "insensitive" as const } }
+    : {};
+
+  const statusFilter =
+    status === "UNWATCHED"
+      ? {
+          channel: { users: { some: { id: userId } } },
+          ...searchWhere,
+          NOT: {
+            userStates: {
+              some: { userId, status: { in: ["WATCHING", "WATCHED"] } },
+            },
+          },
+        }
+      : {
+          channel: { users: { some: { id: userId } } },
+          ...searchWhere,
+          userStates: { some: { userId, status } },
+        };
+
   const [total, videos] = await Promise.all([
-    prisma.video.count({
-      where: {
-        channel: { users: { some: { id: userId } } },
-        userStates: { some: { userId, status } },
-      },
-    }),
+    prisma.video.count({ where: statusFilter }),
     prisma.video.findMany({
-      where: {
-        channel: { users: { some: { id: userId } } },
-        userStates: { some: { userId, status } },
-      },
+      where: statusFilter,
       orderBy: { publishedAt: "desc" },
       skip,
       take: PAGE_SIZE,
@@ -201,7 +235,7 @@ async function FilteredVideos({
   if (videos.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        No videos in this category.
+        {query ? `No videos matching "${query}".` : "No videos in this category."}
       </div>
     );
   }
@@ -210,7 +244,7 @@ async function FilteredVideos({
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {videos.map((video) => (
-          <Card key={video.id} className="overflow-hidden">
+          <Card key={video.id} className="overflow-hidden group">
             <div className="aspect-video bg-muted relative">
               {video.thumbnail ? (
                 <img
@@ -223,6 +257,12 @@ async function FilteredVideos({
                   <PlaySquare className="h-8 w-8 text-muted-foreground" />
                 </div>
               )}
+              <div className="absolute top-2 right-2">
+                <VideoQuickToggle
+                  videoId={video.id}
+                  currentStatus={status}
+                />
+              </div>
             </div>
             <CardContent className="p-4 space-y-3">
               <div>

@@ -4,13 +4,26 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlaySquare, Users } from "lucide-react";
 import Link from "next/link";
+import { SearchInput } from "@/components/search-input";
 
-export default async function ChannelsPage() {
+export default async function ChannelsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const session = await auth();
-  const userId = session!.user!.id;
+  const userId = session!.user!.id!;
+  const { q: query } = await searchParams;
+
+  const where = {
+    users: { some: { id: userId } },
+    ...(query
+      ? { title: { contains: query, mode: "insensitive" as const } }
+      : {}),
+  };
 
   const channels = await prisma.channel.findMany({
-    where: { users: { some: { id: userId } } },
+    where,
     include: {
       _count: { select: { videos: true } },
       videos: {
@@ -29,7 +42,9 @@ export default async function ChannelsPage() {
   const statusMap = new Map(userVideos.map((uv) => [uv.videoId, uv.status]));
 
   const channelsWithCounts = channels.map((ch) => {
-    const unwatched = ch.videos.filter((v) => !statusMap.has(v.id) || statusMap.get(v.id) === "UNWATCHED").length;
+    const unwatched = ch.videos.filter(
+      (v) => !statusMap.has(v.id) || statusMap.get(v.id) === "UNWATCHED"
+    ).length;
     return { ...ch, unwatched };
   });
 
@@ -38,16 +53,22 @@ export default async function ChannelsPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Channels</h1>
         <p className="text-muted-foreground mt-1">
-          Your subscribed channels and their video counts.
+          Your subscribed channels and their video counts. ({channels.length} total)
         </p>
       </div>
+
+      <SearchInput placeholder="Search channels by name..." />
 
       {channelsWithCounts.length === 0 ? (
         <Card className="p-8 text-center">
           <Users className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
-          <h3 className="text-lg font-medium">No channels yet</h3>
+          <h3 className="text-lg font-medium">
+            {query ? `No channels matching "${query}"` : "No channels yet"}
+          </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Sync your subscriptions in Settings to get started.
+            {query
+              ? "Try a different search term."
+              : "Sync your subscriptions in Settings to get started."}
           </p>
         </Card>
       ) : (
