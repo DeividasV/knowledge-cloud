@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { generateVideoTags } from "@/app/actions/videos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, RefreshCw } from "lucide-react";
 
 export function VideoTags({
   videoId,
@@ -35,7 +35,8 @@ export function VideoTags({
           {tag.name}
         </Badge>
       ))}
-      {tags.length === 0 && (
+
+      {tags.length === 0 ? (
         <Button
           onClick={handleGenerate}
           disabled={isPending}
@@ -49,6 +50,21 @@ export function VideoTags({
             <Sparkles className="h-3 w-3 mr-1" />
           )}
           Generate tags
+        </Button>
+      ) : (
+        <Button
+          onClick={handleGenerate}
+          disabled={isPending}
+          variant="ghost"
+          size="sm"
+          title="Regenerate tags"
+          className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+        >
+          {isPending ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3 w-3" />
+          )}
         </Button>
       )}
     </div>

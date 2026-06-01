@@ -355,6 +355,63 @@ export async function generateTagsForUntagged(limit = 100) {
   return { processed: untaggedVideos.length, generated: results.length, results };
 }
 
+export async function generateTagsForAll(limit = 100) {
+  await getUserId();
+
+  const videos = await prisma.video.findMany({
+    where: {
+      OR: [
+        { transcript: { not: null } },
+        { description: { not: null } },
+      ],
+    },
+    select: { id: true, title: true, description: true, transcript: true },
+    take: limit,
+  });
+
+  if (videos.length === 0) {
+    return { processed: 0, tags: [] };
+  }
+
+  const allVideos = await prisma.video.findMany({
+    select: { title: true, description: true, transcript: true },
+  });
+  const corpus = buildCorpus(allVideos);
+
+  const results = [];
+  for (const video of videos) {
+    const tagNames = extractTags(video.title, video.description, video.transcript, {
+      maxTags: 8,
+      corpusPhrases: corpus,
+    });
+
+    if (tagNames.length > 0) {
+      const tagIds: string[] = [];
+      for (const name of tagNames) {
+        const tag = await prisma.tag.upsert({
+          where: { name },
+          create: { name },
+          update: {},
+        });
+        tagIds.push(tag.id);
+      }
+
+      await prisma.video.update({
+        where: { id: video.id },
+        data: {
+          tags: { set: tagIds.map((id) => ({ id })) },
+        },
+      });
+
+      results.push({ videoId: video.id, tags: tagNames });
+    }
+  }
+
+  revalidatePath("/videos");
+  revalidatePath("/channels/[channelId]");
+  return { processed: videos.length, generated: results.length, results };
+}
+
 export async function getTagStats() {
   await getUserId();
 
