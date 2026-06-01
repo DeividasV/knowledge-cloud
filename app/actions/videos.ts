@@ -142,27 +142,40 @@ export async function getDashboardStats() {
 
 // ── Channel categories ──────────────────────────────────────────────
 
-export async function updateChannelCategories(channelId: string, categoryNames: string[]) {
+export async function addChannelCategory(channelId: string, categoryName: string) {
   await getUserId();
-  const uniqueNames = [...new Set(categoryNames.map((n) => n.trim()).filter(Boolean))];
+  const name = categoryName.trim();
+  if (!name) throw new Error("Category name is required");
 
-  // Ensure all categories exist
-  const categoryIds: string[] = [];
-  for (const name of uniqueNames) {
-    const cat = await prisma.category.upsert({
-      where: { name },
-      create: { name },
-      update: {},
-    });
-    categoryIds.push(cat.id);
-  }
+  const cat = await prisma.category.upsert({
+    where: { name },
+    create: { name },
+    update: {},
+  });
 
   await prisma.channel.update({
     where: { id: channelId },
     data: {
-      categories: {
-        set: categoryIds.map((id) => ({ id })),
-      },
+      categories: { connect: { id: cat.id } },
+    },
+  });
+
+  revalidatePath("/channels");
+  revalidatePath("/channels/[channelId]");
+}
+
+export async function removeChannelCategory(channelId: string, categoryName: string) {
+  await getUserId();
+  const name = categoryName.trim();
+  if (!name) throw new Error("Category name is required");
+
+  const cat = await prisma.category.findUnique({ where: { name } });
+  if (!cat) return;
+
+  await prisma.channel.update({
+    where: { id: channelId },
+    data: {
+      categories: { disconnect: { id: cat.id } },
     },
   });
 

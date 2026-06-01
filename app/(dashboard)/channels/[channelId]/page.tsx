@@ -4,16 +4,17 @@ import { notFound } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlaySquare, CheckCircle, Tag, RefreshCw } from "lucide-react";
+import { PlaySquare, CheckCircle, RefreshCw } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
 import { VideoQuickToggle } from "@/components/video-quick-toggle";
 import { VideoTranscript } from "@/components/video-transcript";
 import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
-import { markAllChannelVideosAsWatched, updateChannelCategories } from "@/app/actions/videos";
+import { markAllChannelVideosAsWatched } from "@/app/actions/videos";
 import { syncChannelVideos } from "@/app/actions/sync";
 import { PendingButton } from "@/components/pending-button";
+import { ChannelCategoryManager } from "@/components/channel-category-manager";
 
 const PAGE_SIZE = 50;
 
@@ -218,26 +219,11 @@ export default async function ChannelPage({
         </div>
       </div>
 
-      <form
-        action={async (formData: FormData) => {
-          "use server";
-          const cat = formData.get("category") as string;
-          const names = cat.split(",").map((n) => n.trim()).filter(Boolean);
-          await updateChannelCategories(channelId, names);
-        }}
-        className="flex items-center gap-2"
-      >
-        <Tag className="h-4 w-4 text-muted-foreground" />
-        <input
-          name="category"
-          defaultValue={channel.categories.map((c) => c.name).join(", ")}
-          placeholder="Categories, comma-separated..."
-          className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 w-64"
-        />
-        <Button type="submit" variant="ghost" size="sm">
-          Save
-        </Button>
-      </form>
+      <ChannelCategoryManager
+        channelId={channelId}
+        categories={channel.categories}
+        allCategories={await prisma.category.findMany({ orderBy: { name: "asc" } })}
+      />
 
       <SearchInput placeholder="Search videos by title..." />
 
