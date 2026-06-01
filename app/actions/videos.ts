@@ -13,6 +13,15 @@ async function getUserId(): Promise<string> {
   return session.user.id;
 }
 
+async function getUserMaxTags(): Promise<number> {
+  const userId = await getUserId();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { maxTagsPerVideo: true },
+  });
+  return user?.maxTagsPerVideo ?? 8;
+}
+
 export async function updateVideoStatus(
   videoId: string,
   status: VideoStatus,
@@ -256,6 +265,7 @@ export async function fetchTranscriptsBatch(videoIds: string[]) {
 
 export async function generateVideoTags(videoId: string) {
   await getUserId();
+  const maxTags = await getUserMaxTags();
 
   const video = await prisma.video.findUnique({
     where: { id: videoId },
@@ -271,7 +281,7 @@ export async function generateVideoTags(videoId: string) {
   const corpus = buildCorpus(allVideos);
 
   const tagNames = extractTags(video.title, video.description, video.transcript, {
-    maxTags: 8,
+    maxTags,
     corpusPhrases: corpus,
   });
 
@@ -301,6 +311,7 @@ export async function generateVideoTags(videoId: string) {
 
 export async function generateTagsForUntagged(limit = 100) {
   await getUserId();
+  const maxTags = await getUserMaxTags();
 
   // Find videos without tags
   const untaggedVideos = await prisma.video.findMany({
@@ -328,7 +339,7 @@ export async function generateTagsForUntagged(limit = 100) {
   const results = [];
   for (const video of untaggedVideos) {
     const extractedTags = extractTags(video.title, video.description, video.transcript, {
-      maxTags: 8,
+      maxTags,
       corpusPhrases: corpus,
     });
 
@@ -362,6 +373,7 @@ export async function generateTagsForUntagged(limit = 100) {
 
 export async function generateTagsForAll(limit = 100) {
   await getUserId();
+  const maxTags = await getUserMaxTags();
 
   const videos = await prisma.video.findMany({
     where: {
@@ -386,7 +398,7 @@ export async function generateTagsForAll(limit = 100) {
   const results = [];
   for (const video of videos) {
     const extractedTags = extractTags(video.title, video.description, video.transcript, {
-      maxTags: 8,
+      maxTags,
       corpusPhrases: corpus,
     });
 
@@ -428,4 +440,23 @@ export async function getTagStats() {
   ]);
 
   return { totalTags, taggedVideos, untaggedVideos };
+}
+
+export async function getMaxTagsSetting() {
+  const userId = await getUserId();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { maxTagsPerVideo: true },
+  });
+  return user?.maxTagsPerVideo ?? 8;
+}
+
+export async function setMaxTagsSetting(value: number) {
+  const userId = await getUserId();
+  const maxTags = Math.max(1, Math.min(50, Math.round(value)));
+  await prisma.user.update({
+    where: { id: userId },
+    data: { maxTagsPerVideo: maxTags },
+  });
+  return maxTags;
 }

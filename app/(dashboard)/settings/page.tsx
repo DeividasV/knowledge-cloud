@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { syncSubscriptions, syncChannelVideos } from "@/app/actions/sync";
 import { forceReauth } from "@/app/actions/auth";
-import { getTranscriptStats, getTagStats, generateTagsForUntagged } from "@/app/actions/videos";
+import { getTranscriptStats, getMaxTagsSetting } from "@/app/actions/videos";
 import { SyncProgressButton } from "@/components/sync-progress";
 import { TranscriptBulkFetch } from "@/components/transcript-bulk-fetch";
 import { PendingButton } from "@/components/pending-button";
-import { TagBulkGenerate } from "@/components/tag-bulk-generate";
+import { TagSettings } from "@/components/tag-settings";
 import { RefreshCw, AlertTriangle, KeyRound, FileText, Sparkles } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 
@@ -37,6 +37,7 @@ export default async function SettingsPage() {
   const hasYouTubeScope = account?.scope?.includes("youtube") ?? false;
 
   const transcriptStats = await getTranscriptStats();
+  const maxTags = await getMaxTagsSetting();
 
   // Get IDs of videos without transcripts for bulk fetch
   const videosWithoutTranscript = await prisma.video.findMany({
@@ -176,7 +177,7 @@ export default async function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <TagBulkGenerate />
+          <TagSettings initialMaxTags={maxTags} />
         </CardContent>
       </Card>
 
