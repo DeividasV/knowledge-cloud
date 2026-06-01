@@ -25,7 +25,7 @@ export default async function VideosPage({
 
   const searchWhere = query
     ? {
-        title: { contains: query, mode: "insensitive" as const },
+        title: { contains: query },
       }
     : {};
 
@@ -196,7 +196,7 @@ async function FilteredVideos({
   const skip = (page - 1) * PAGE_SIZE;
 
   const searchWhere = query
-    ? { title: { contains: query, mode: "insensitive" as const } }
+    ? { title: { contains: query } }
     : {};
 
   const statusFilter =

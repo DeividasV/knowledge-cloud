@@ -39,7 +39,7 @@ export default async function ChannelPage({
   if (!channel) notFound();
 
   const searchWhere = query
-    ? { title: { contains: query, mode: "insensitive" as const } }
+    ? { title: { contains: query } }
     : {};
 
   const statusWhere =
@@ -267,7 +267,7 @@ async function FilteredVideoList({
   const skip = (page - 1) * PAGE_SIZE;
 
   const searchWhere = query
-    ? { title: { contains: query, mode: "insensitive" as const } }
+    ? { title: { contains: query } }
     : {};
 
   const statusFilter =

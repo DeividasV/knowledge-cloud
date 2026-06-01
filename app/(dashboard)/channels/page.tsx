@@ -18,7 +18,7 @@ export default async function ChannelsPage({
   const where = {
     users: { some: { id: userId } },
     ...(query
-      ? { title: { contains: query, mode: "insensitive" as const } }
+      ? { title: { contains: query } }
       : {}),
   };
 

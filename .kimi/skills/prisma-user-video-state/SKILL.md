@@ -183,7 +183,7 @@ When adding text search to status-filtered queries, merge the `where` clauses:
 ```ts
 const where = {
   channel: { users: { some: { id: userId } } },
-  title: { contains: query, mode: "insensitive" },
+  title: { contains: query },
   // For UNWATCHED:
   NOT: { userStates: { some: { userId, status: { in: ["WATCHING", "WATCHED"] } } } },
   // For WATCHING/WATCHED:
