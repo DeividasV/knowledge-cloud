@@ -163,8 +163,19 @@ export async function syncChannelVideos(channelId: string) {
   const existingIds = new Set(existingVideos.map((v) => v.id));
 
   const categoryCounts = new Map<string, number>();
+  const shortsToDelete: string[] = [];
 
   for (const v of videoDetails) {
+    const durationSec = parseDuration(v.contentDetails.duration);
+
+    // Skip shorts (≤60 seconds)
+    if (durationSec > 0 && durationSec <= 60) {
+      if (existingIds.has(v.id)) {
+        shortsToDelete.push(v.id);
+      }
+      continue;
+    }
+
     const catId = v.snippet?.categoryId ? parseInt(v.snippet.categoryId, 10) : undefined;
     const category = catId ? YOUTUBE_CATEGORY_MAP[catId] : undefined;
     if (category) {
@@ -176,7 +187,7 @@ export async function syncChannelVideos(channelId: string) {
       title: v.snippet.title,
       description: v.snippet.description,
       thumbnail: v.snippet.thumbnails?.medium?.url || v.snippet.thumbnails?.default?.url,
-      durationSec: parseDuration(v.contentDetails.duration),
+      durationSec,
       publishedAt: new Date(v.snippet.publishedAt),
       channelId: channelId,
       category,
@@ -187,6 +198,13 @@ export async function syncChannelVideos(channelId: string) {
     } else {
       await prisma.video.create({ data });
     }
+  }
+
+  // Delete any existing videos that are now identified as shorts
+  if (shortsToDelete.length > 0) {
+    await prisma.video.deleteMany({
+      where: { id: { in: shortsToDelete } },
+    });
   }
 
   // Auto-set channel category from most common video category if channel has none
