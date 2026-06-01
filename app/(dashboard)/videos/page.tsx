@@ -30,7 +30,7 @@ export default async function VideosPage({
     : {};
 
   const statusWhere =
-    statusFilter && ["UNWATCHED", "WATCHING", "WATCHED"].includes(statusFilter)
+    statusFilter && ["UNWATCHED", "WATCHED", "NOT_INTERESTED"].includes(statusFilter)
       ? statusFilter
       : undefined;
 
@@ -72,11 +72,14 @@ export default async function VideosPage({
 
   const counts = {
     UNWATCHED: 0,
-    WATCHING: 0,
     WATCHED: 0,
+    NOT_INTERESTED: 0,
   };
   for (const s of statusCounts) {
-    counts[s.status as keyof typeof counts] = s._count.status;
+    const key = s.status as keyof typeof counts;
+    if (key in counts) {
+      counts[key] = s._count.status;
+    }
   }
 
   function VideoList({ items }: { items: typeof videos }) {
@@ -159,8 +162,8 @@ export default async function VideosPage({
         <TabsList>
           <TabsTrigger value="all">All ({totalVideos})</TabsTrigger>
           <TabsTrigger value="unwatched">Unwatched ({counts.UNWATCHED})</TabsTrigger>
-          <TabsTrigger value="watching">Watching ({counts.WATCHING})</TabsTrigger>
           <TabsTrigger value="watched">Watched ({counts.WATCHED})</TabsTrigger>
+          <TabsTrigger value="not-interested">Not interested ({counts.NOT_INTERESTED})</TabsTrigger>
         </TabsList>
         <TabsContent value="all" className="mt-4">
           <VideoList items={videos} />
@@ -169,13 +172,13 @@ export default async function VideosPage({
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideos userId={userId} status="UNWATCHED" page={page} query={query} />
         </TabsContent>
-        <TabsContent value="watching" className="mt-4">
-          {/* @ts-ignore Next.js 16 async component JSX type bug */}
-          <FilteredVideos userId={userId} status="WATCHING" page={page} query={query} />
-        </TabsContent>
         <TabsContent value="watched" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideos userId={userId} status="WATCHED" page={page} query={query} />
+        </TabsContent>
+        <TabsContent value="not-interested" className="mt-4">
+          {/* @ts-ignore Next.js 16 async component JSX type bug */}
+          <FilteredVideos userId={userId} status="NOT_INTERESTED" page={page} query={query} />
         </TabsContent>
       </Tabs>
     </div>
@@ -206,7 +209,7 @@ async function FilteredVideos({
           ...searchWhere,
           NOT: {
             userStates: {
-              some: { userId, status: { in: ["WATCHING", "WATCHED"] } },
+              some: { userId, status: { in: ["WATCHING", "WATCHED", "NOT_INTERESTED"] } },
             },
           },
         }

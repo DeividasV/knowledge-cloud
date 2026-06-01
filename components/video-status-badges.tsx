@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 type StatusConfig = {
   status: VideoStatus;
   label: string;
+  shortLabel: string;
   activeClass: string;
 };
 
@@ -17,24 +18,27 @@ const statusConfigs: StatusConfig[] = [
   {
     status: "UNWATCHED",
     label: "Unwatched",
+    shortLabel: "Unwatched",
     activeClass:
-      "bg-slate-100/90 text-slate-700 border-slate-300/80 dark:bg-slate-800/90 dark:text-slate-300 dark:border-slate-600/80",
+      "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600",
   },
   {
     status: "WATCHED",
     label: "Watched",
+    shortLabel: "Watched",
     activeClass:
-      "bg-emerald-100/90 text-emerald-700 border-emerald-300/80 dark:bg-emerald-900/90 dark:text-emerald-300 dark:border-emerald-700/80",
+      "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900 dark:text-emerald-300 dark:border-emerald-700",
   },
   {
     status: "NOT_INTERESTED",
-    label: "Skip",
+    label: "Not interested",
+    shortLabel: "Skip",
     activeClass:
-      "bg-red-100/90 text-red-700 border-red-300/80 dark:bg-red-900/90 dark:text-red-300 dark:border-red-700/80",
+      "bg-red-100 text-red-700 border-red-300 dark:bg-red-900 dark:text-red-300 dark:border-red-700",
   },
 ];
 
-export function VideoQuickToggle({
+export function VideoStatusBadges({
   videoId,
   currentStatus,
 }: {
@@ -52,7 +56,7 @@ export function VideoQuickToggle({
   };
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1.5">
       {statusConfigs.map((config) => {
         const isActive = currentStatus === config.status;
         return (
@@ -62,17 +66,17 @@ export function VideoQuickToggle({
             disabled={isPending}
             title={config.label}
             className={cn(
-              "inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors backdrop-blur-sm",
+              "inline-flex items-center justify-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
               isActive
                 ? config.activeClass
-                : "border-white/20 bg-black/40 text-white/80 hover:bg-black/60 hover:text-white",
+                : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
               isPending && "opacity-50 cursor-not-allowed"
             )}
           >
             {isPending && currentStatus !== config.status ? (
-              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+              <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
-              config.label
+              config.shortLabel
             )}
           </button>
         );

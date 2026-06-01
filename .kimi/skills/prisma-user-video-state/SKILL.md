@@ -21,7 +21,7 @@ model UserVideo {
   id          String   @id @default(cuid())
   userId      String
   videoId     String
-  status      String   @default("UNWATCHED")  // "UNWATCHED" | "WATCHING" | "WATCHED"
+  status      String   @default("UNWATCHED")  // "UNWATCHED" | "WATCHING" | "WATCHED" | "NOT_INTERESTED"
   progressSec Int      @default(0)
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -35,7 +35,9 @@ model UserVideo {
 1. No `UserVideo` row exists for this `(userId, videoId)` pair, OR
 2. A `UserVideo` row exists with `status === "UNWATCHED"`
 
-`WATCHING` and `WATCHED` always require an existing `UserVideo` row.
+`WATCHED` and `NOT_INTERESTED` always require an existing `UserVideo` row.
+
+**Active statuses**: `UNWATCHED`, `WATCHED`, `NOT_INTERESTED`. `WATCHING` is kept for backward compatibility but not used in the UI.
 
 ## Querying by Status
 
@@ -49,7 +51,7 @@ const unwatchedVideos = await prisma.video.findMany({
     channel: { users: { some: { id: userId } } },
     NOT: {
       userStates: {
-        some: { userId, status: { in: ["WATCHING", "WATCHED"] } },
+        some: { userId, status: { in: ["WATCHING", "WATCHED", "NOT_INTERESTED"] } },
       },
     },
   },
@@ -86,7 +88,7 @@ const unwatchedCount = await prisma.video.count({
     channelId,
     NOT: {
       userStates: {
-        some: { userId, status: { in: ["WATCHING", "WATCHED"] } },
+        some: { userId, status: { in: ["WATCHING", "WATCHED", "NOT_INTERESTED"] } },
       },
     },
   },
@@ -112,7 +114,7 @@ const statusCounts = await prisma.userVideo.groupBy({
   _count: { status: true },
 });
 
-const counts = { UNWATCHED: 0, WATCHING: 0, WATCHED: 0 };
+const counts = { UNWATCHED: 0, WATCHING: 0, WATCHED: 0, NOT_INTERESTED: 0 };
 for (const s of statusCounts) {
   counts[s.status as keyof typeof counts] = s._count.status;
 }
@@ -185,7 +187,7 @@ const where = {
   channel: { users: { some: { id: userId } } },
   title: { contains: query },
   // For UNWATCHED:
-  NOT: { userStates: { some: { userId, status: { in: ["WATCHING", "WATCHED"] } } } },
+  NOT: { userStates: { some: { userId, status: { in: ["WATCHING", "WATCHED", "NOT_INTERESTED"] } } } },
   // For WATCHING/WATCHED:
   // userStates: { some: { userId, status: "WATCHING" } },
 };

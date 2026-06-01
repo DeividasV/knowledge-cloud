@@ -1,9 +1,7 @@
 import { getDashboardStats, getRecentVideos } from "@/app/actions/videos";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Tv, PlaySquare, Eye, EyeOff, Clock } from "lucide-react";
+import { Tv, PlaySquare, Eye, EyeOff, Ban } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
@@ -11,19 +9,21 @@ import { VideoStatus } from "@/lib/types";
 import { VideoQuickToggle } from "@/components/video-quick-toggle";
 
 function StatusBadge({ status }: { status: VideoStatus }) {
-  const variants: Record<VideoStatus, string> = {
+  const variants: Record<string, string> = {
     UNWATCHED: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
     WATCHING: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
     WATCHED: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
+    NOT_INTERESTED: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
   };
-  const labels: Record<VideoStatus, string> = {
+  const labels: Record<string, string> = {
     UNWATCHED: "Unwatched",
     WATCHING: "Watching",
     WATCHED: "Watched",
+    NOT_INTERESTED: "Not interested",
   };
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${variants[status]}`}>
-      {labels[status]}
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${variants[status] || variants.UNWATCHED}`}>
+      {labels[status] || "Unwatched"}
     </span>
   );
 }
@@ -32,9 +32,10 @@ export default async function DashboardPage() {
   const stats = await getDashboardStats();
   const recentVideos = await getRecentVideos(12);
 
+  const actionableVideos = stats.totalVideos - stats.notInterested;
   const watchedPercent =
-    stats.totalVideos > 0
-      ? Math.round((stats.watched / stats.totalVideos) * 100)
+    actionableVideos > 0
+      ? Math.round((stats.watched / actionableVideos) * 100)
       : 0;
 
   return (
@@ -97,12 +98,12 @@ export default async function DashboardPage() {
           <Progress value={watchedPercent} className="h-2" />
           <div className="flex gap-4 pt-2 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {stats.watching} in progress
-            </span>
-            <span className="flex items-center gap-1">
               <EyeOff className="h-3 w-3" />
               {stats.unwatched} remaining
+            </span>
+            <span className="flex items-center gap-1">
+              <Ban className="h-3 w-3" />
+              {stats.notInterested} skipped
             </span>
           </div>
         </CardContent>

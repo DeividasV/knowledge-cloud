@@ -43,7 +43,7 @@ export default async function ChannelPage({
     : {};
 
   const statusWhere =
-    statusFilter && ["UNWATCHED", "WATCHING", "WATCHED"].includes(statusFilter)
+    statusFilter && ["UNWATCHED", "WATCHED", "NOT_INTERESTED"].includes(statusFilter)
       ? statusFilter
       : undefined;
 
@@ -81,16 +81,9 @@ export default async function ChannelPage({
       channelId,
       NOT: {
         userStates: {
-          some: { userId, status: { in: ["WATCHING", "WATCHED"] } },
+          some: { userId, status: { in: ["WATCHING", "WATCHED", "NOT_INTERESTED"] } },
         },
       },
-    },
-  });
-
-  const watchingCount = await prisma.video.count({
-    where: {
-      channelId,
-      userStates: { some: { userId, status: "WATCHING" } },
     },
   });
 
@@ -101,11 +94,18 @@ export default async function ChannelPage({
     },
   });
 
+  const notInterestedCount = await prisma.video.count({
+    where: {
+      channelId,
+      userStates: { some: { userId, status: "NOT_INTERESTED" } },
+    },
+  });
+
   const counts = {
     all: totalVideos,
     unwatched: unwatchedCount,
-    watching: watchingCount,
     watched: watchedCount,
+    notInterested: notInterestedCount,
   };
 
   const markAllAsWatched = markAllChannelVideosAsWatched.bind(null, channelId);
@@ -208,10 +208,10 @@ export default async function ChannelPage({
           <TabsTrigger value="unwatched">
             Unwatched ({counts.unwatched})
           </TabsTrigger>
-          <TabsTrigger value="watching">
-            Watching ({counts.watching})
-          </TabsTrigger>
           <TabsTrigger value="watched">Watched ({counts.watched})</TabsTrigger>
+          <TabsTrigger value="not-interested">
+            Not interested ({counts.notInterested})
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="all" className="mt-4">
           <VideoList items={videos} />
@@ -226,22 +226,22 @@ export default async function ChannelPage({
             query={query}
           />
         </TabsContent>
-        <TabsContent value="watching" className="mt-4">
-          {/* @ts-ignore Next.js 16 async component JSX type bug */}
-          <FilteredVideoList
-            channelId={channelId}
-            userId={userId}
-            status="WATCHING"
-            page={page}
-            query={query}
-          />
-        </TabsContent>
         <TabsContent value="watched" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideoList
             channelId={channelId}
             userId={userId}
             status="WATCHED"
+            page={page}
+            query={query}
+          />
+        </TabsContent>
+        <TabsContent value="not-interested" className="mt-4">
+          {/* @ts-ignore Next.js 16 async component JSX type bug */}
+          <FilteredVideoList
+            channelId={channelId}
+            userId={userId}
+            status="NOT_INTERESTED"
             page={page}
             query={query}
           />
@@ -277,7 +277,7 @@ async function FilteredVideoList({
           ...searchWhere,
           NOT: {
             userStates: {
-              some: { userId, status: { in: ["WATCHING", "WATCHED"] } },
+              some: { userId, status: { in: ["WATCHING", "WATCHED", "NOT_INTERESTED"] } },
             },
           },
         }

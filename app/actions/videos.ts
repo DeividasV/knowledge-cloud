@@ -114,6 +114,7 @@ export async function getDashboardStats() {
     UNWATCHED: 0,
     WATCHING: 0,
     WATCHED: 0,
+    NOT_INTERESTED: 0,
   };
 
   for (const s of stats) {
@@ -127,5 +128,6 @@ export async function getDashboardStats() {
     unwatched: statusCounts.UNWATCHED,
     watching: statusCounts.WATCHING,
     watched: statusCounts.WATCHED,
+    notInterested: statusCounts.NOT_INTERESTED,
   };
 }
