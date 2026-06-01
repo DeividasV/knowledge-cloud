@@ -81,6 +81,7 @@ model Video {
   userStates          UserVideo[]
   transcript          String?
   transcriptFetchedAt DateTime?
+  category            String?
 }
 
 model UserVideo {

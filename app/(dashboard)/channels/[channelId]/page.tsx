@@ -156,6 +156,7 @@ export default async function ChannelPage({
                       {video.title}
                     </h3>
                     <p className="text-xs text-muted-foreground mt-1">
+                      {video.category ? `${video.category} · ` : ""}
                       {new Date(video.publishedAt).toLocaleDateString()}
                       {video.durationSec ? (
                         <span className="ml-2">
@@ -363,6 +364,7 @@ async function FilteredVideoList({
                   {video.title}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1">
+                  {video.category ? `${video.category} · ` : ""}
                   {new Date(video.publishedAt).toLocaleDateString()}
                   {video.durationSec ? (
                     <span className="ml-2">

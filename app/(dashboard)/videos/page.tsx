@@ -124,7 +124,9 @@ export default async function VideosPage({
                     {video.title}
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {video.channel.title} · {new Date(video.publishedAt).toLocaleDateString()}
+                    {video.channel.title}
+                    {video.category ? ` · ${video.category}` : ""}
+                    · {new Date(video.publishedAt).toLocaleDateString()}
                     {video.durationSec ? (
                       <span className="ml-2">
                         {Math.floor(video.durationSec / 60)}:
@@ -278,7 +280,9 @@ async function FilteredVideos({
                   {video.title}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {video.channel.title} · {new Date(video.publishedAt).toLocaleDateString()}
+                  {video.channel.title}
+                  {video.category ? ` · ${video.category}` : ""}
+                  · {new Date(video.publishedAt).toLocaleDateString()}
                   {video.durationSec ? (
                     <span className="ml-2">
                       {Math.floor(video.durationSec / 60)}:

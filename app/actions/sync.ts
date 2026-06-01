@@ -11,6 +11,7 @@ import {
   fetchVideoDetails,
   parseDuration,
   getCategoryFromTopics,
+  YOUTUBE_CATEGORY_MAP,
 } from "@/lib/youtube";
 
 async function getAccessToken(): Promise<string> {
@@ -123,7 +124,15 @@ export async function syncChannelVideos(channelId: string) {
   });
   const existingIds = new Set(existingVideos.map((v) => v.id));
 
+  const categoryCounts = new Map<string, number>();
+
   for (const v of videoDetails) {
+    const catId = v.snippet?.categoryId ? parseInt(v.snippet.categoryId, 10) : undefined;
+    const category = catId ? YOUTUBE_CATEGORY_MAP[catId] : undefined;
+    if (category) {
+      categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+    }
+
     const data = {
       id: v.id,
       title: v.snippet.title,
@@ -132,6 +141,7 @@ export async function syncChannelVideos(channelId: string) {
       durationSec: parseDuration(v.contentDetails.duration),
       publishedAt: new Date(v.snippet.publishedAt),
       channelId: channelId,
+      category,
     };
 
     if (existingIds.has(v.id)) {
@@ -141,9 +151,24 @@ export async function syncChannelVideos(channelId: string) {
     }
   }
 
+  // Auto-set channel category from most common video category if not set
+  let mostCommonCategory: string | undefined;
+  let maxCount = 0;
+  for (const [cat, count] of categoryCounts) {
+    if (count > maxCount) {
+      maxCount = count;
+      mostCommonCategory = cat;
+    }
+  }
+
+  const channelUpdateData: any = { lastSyncedAt: new Date() };
+  if (mostCommonCategory && !channel?.category) {
+    channelUpdateData.category = mostCommonCategory;
+  }
+
   await prisma.channel.update({
     where: { id: channelId },
-    data: { lastSyncedAt: new Date() },
+    data: channelUpdateData,
   });
 
   revalidatePath("/");
