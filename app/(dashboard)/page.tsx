@@ -1,7 +1,7 @@
 import { getDashboardStats, getRecentVideos } from "@/app/actions/videos";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Tv, PlaySquare, Eye, EyeOff, Ban } from "lucide-react";
+import { Tv, PlaySquare, Eye, EyeOff, Ban, XCircle } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
@@ -10,21 +10,21 @@ import { VideoQuickToggle } from "@/components/video-quick-toggle";
 import { VideoTranscript } from "@/components/video-transcript";
 
 function StatusBadge({ status }: { status: VideoStatus }) {
+  // Map legacy WATCHING to UNWATCHED for display
+  const displayStatus = status === "WATCHING" ? "UNWATCHED" : status;
   const variants: Record<string, string> = {
     UNWATCHED: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-    WATCHING: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
     WATCHED: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
     NOT_INTERESTED: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
   };
   const labels: Record<string, string> = {
     UNWATCHED: "Unwatched",
-    WATCHING: "Watching",
     WATCHED: "Watched",
     NOT_INTERESTED: "Not interested",
   };
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${variants[status] || variants.UNWATCHED}`}>
-      {labels[status] || "Unwatched"}
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${variants[displayStatus] || variants.UNWATCHED}`}>
+      {labels[displayStatus] || "Unwatched"}
     </span>
   );
 }
@@ -48,7 +48,7 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Channels</CardTitle>
@@ -83,6 +83,15 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.watched}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Not Interested</CardTitle>
+            <XCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.notInterested}</div>
           </CardContent>
         </Card>
       </div>
