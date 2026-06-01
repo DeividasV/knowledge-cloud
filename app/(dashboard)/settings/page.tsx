@@ -10,7 +10,7 @@ import { SyncProgressButton } from "@/components/sync-progress";
 import { TranscriptBulkFetch } from "@/components/transcript-bulk-fetch";
 import { PendingButton } from "@/components/pending-button";
 import { TagSettings } from "@/components/tag-settings";
-import { RefreshCw, AlertTriangle, KeyRound, FileText, Sparkles } from "lucide-react";
+import { RefreshCw, AlertTriangle, KeyRound, FileText, Sparkles, CheckCircle } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 
 export default async function SettingsPage() {
@@ -149,8 +149,13 @@ export default async function SettingsPage() {
             <span className="font-medium">{transcriptStats.withoutTranscript}</span>
           </div>
 
-          {missingTranscriptIds.length > 0 && (
+          {missingTranscriptIds.length > 0 ? (
             <TranscriptBulkFetch videoIds={missingTranscriptIds} />
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle className="h-4 w-4 text-emerald-600" />
+              All transcripts fetched
+            </div>
           )}
 
           <div className="rounded-lg border bg-amber-50 dark:bg-amber-950/30 p-4 flex gap-3">

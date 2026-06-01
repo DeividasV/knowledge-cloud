@@ -14,6 +14,7 @@ const BATCH_SIZE = 10;
 
 export function ChannelTranscriptFetch({ channelId }: { channelId: string }) {
   const [videoIds, setVideoIds] = useState<string[]>([]);
+  const [loadingIds, setLoadingIds] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [progress, setProgress] = useState<{
     total: number;
@@ -26,7 +27,11 @@ export function ChannelTranscriptFetch({ channelId }: { channelId: string }) {
   const router = useRouter();
 
   useEffect(() => {
-    getChannelVideosWithoutTranscript(channelId).then(setVideoIds);
+    setLoadingIds(true);
+    getChannelVideosWithoutTranscript(channelId).then((ids) => {
+      setVideoIds(ids);
+      setLoadingIds(false);
+    });
   }, [channelId]);
 
   async function runFetch() {
@@ -61,7 +66,19 @@ export function ChannelTranscriptFetch({ channelId }: { channelId: string }) {
     }
 
     setProgress((prev) => (prev ? { ...prev, isRunning: false } : null));
+    // Refresh videoIds after fetching
+    const remaining = await getChannelVideosWithoutTranscript(channelId);
+    setVideoIds(remaining);
     router.refresh();
+  }
+
+  if (loadingIds) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading...
+      </div>
+    );
   }
 
   if (videoIds.length === 0 && !progress) {
