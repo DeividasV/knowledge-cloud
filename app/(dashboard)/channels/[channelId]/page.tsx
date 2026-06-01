@@ -11,7 +11,7 @@ import { VideoTranscript } from "@/components/video-transcript";
 import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
-import { markAllChannelVideosAsWatched, updateChannelCategory } from "@/app/actions/videos";
+import { markAllChannelVideosAsWatched, updateChannelCategories } from "@/app/actions/videos";
 import { syncChannelVideos } from "@/app/actions/sync";
 import { PendingButton } from "@/components/pending-button";
 
@@ -37,6 +37,7 @@ export default async function ChannelPage({
       id: channelId,
       users: { some: { id: userId } },
     },
+    include: { categories: true },
   });
 
   if (!channel) notFound();
@@ -193,7 +194,7 @@ export default async function ChannelPage({
           <h1 className="text-3xl font-bold tracking-tight">{channel.title}</h1>
           <p className="text-muted-foreground mt-1">
             {counts.all} videos · {counts.unwatched} unwatched
-            {channel.category ? ` · ${channel.category}` : ""}
+            {channel.categories.length > 0 ? ` · ${channel.categories.map((c) => c.name).join(", ")}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -221,16 +222,17 @@ export default async function ChannelPage({
         action={async (formData: FormData) => {
           "use server";
           const cat = formData.get("category") as string;
-          await updateChannelCategory(channelId, cat || null);
+          const names = cat.split(",").map((n) => n.trim()).filter(Boolean);
+          await updateChannelCategories(channelId, names);
         }}
         className="flex items-center gap-2"
       >
         <Tag className="h-4 w-4 text-muted-foreground" />
         <input
           name="category"
-          defaultValue={channel.category || ""}
-          placeholder="Category..."
-          className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 w-40"
+          defaultValue={channel.categories.map((c) => c.name).join(", ")}
+          placeholder="Categories, comma-separated..."
+          className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 w-64"
         />
         <Button type="submit" variant="ghost" size="sm">
           Save

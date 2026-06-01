@@ -140,14 +140,32 @@ export async function getDashboardStats() {
   };
 }
 
-// ── Channel category ────────────────────────────────────────────────
+// ── Channel categories ──────────────────────────────────────────────
 
-export async function updateChannelCategory(channelId: string, category: string | null) {
+export async function updateChannelCategories(channelId: string, categoryNames: string[]) {
   await getUserId();
+  const uniqueNames = [...new Set(categoryNames.map((n) => n.trim()).filter(Boolean))];
+
+  // Ensure all categories exist
+  const categoryIds: string[] = [];
+  for (const name of uniqueNames) {
+    const cat = await prisma.category.upsert({
+      where: { name },
+      create: { name },
+      update: {},
+    });
+    categoryIds.push(cat.id);
+  }
+
   await prisma.channel.update({
     where: { id: channelId },
-    data: { category: category || null },
+    data: {
+      categories: {
+        set: categoryIds.map((id) => ({ id })),
+      },
+    },
   });
+
   revalidatePath("/channels");
   revalidatePath("/channels/[channelId]");
 }

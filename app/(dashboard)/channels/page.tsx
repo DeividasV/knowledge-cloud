@@ -19,33 +19,33 @@ export default async function ChannelsPage({
   const where = {
     users: { some: { id: userId } },
     ...(query ? { title: { contains: query } } : {}),
-    ...(categoryFilter ? { category: categoryFilter } : {}),
+    ...(categoryFilter
+      ? { categories: { some: { name: categoryFilter } } }
+      : {}),
   };
 
-  const [channels, allUserChannels] = await Promise.all([
+  const [channels, allCategories] = await Promise.all([
     prisma.channel.findMany({
       where,
       include: {
         _count: { select: { videos: true } },
         videos: { select: { id: true } },
+        categories: true,
       },
       orderBy: { title: "asc" },
     }),
-    prisma.channel.findMany({
-      where: { users: { some: { id: userId } } },
-      select: { category: true },
+    prisma.category.findMany({
+      where: { channels: { some: { users: { some: { id: userId } } } } },
+      include: {
+        _count: { select: { channels: true } },
+      },
+      orderBy: { name: "asc" },
     }),
   ]);
 
-  // Build category counts
-  const categoryCounts = new Map<string, number>();
-  for (const ch of allUserChannels) {
-    const cat = ch.category || "Uncategorized";
-    categoryCounts.set(cat, (categoryCounts.get(cat) || 0) + 1);
-  }
-  const sortedCategories = Array.from(categoryCounts.entries()).sort(
-    (a, b) => b[1] - a[1]
-  );
+  const totalChannels = await prisma.channel.count({
+    where: { users: { some: { id: userId } } },
+  });
 
   // Get unwatched counts per channel
   const videoIds = channels.flatMap((c) => c.videos.map((v) => v.id));
@@ -67,13 +67,13 @@ export default async function ChannelsPage({
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Channels</h1>
         <p className="text-muted-foreground mt-1">
-          Your subscribed channels and their video counts. ({channels.length} total)
+          Your subscribed channels and their video counts. ({channels.length} of {totalChannels} shown)
         </p>
       </div>
 
       <SearchInput placeholder="Search channels by name..." />
 
-      {sortedCategories.length > 0 && (
+      {allCategories.length > 0 && (
         <div className="flex flex-wrap gap-2">
           <Link
             href="/channels"
@@ -84,20 +84,20 @@ export default async function ChannelsPage({
                 : "border-input bg-background text-foreground hover:bg-accent"
             )}
           >
-            All ({allUserChannels.length})
+            All ({totalChannels})
           </Link>
-          {sortedCategories.map(([cat, count]) => (
+          {allCategories.map((cat) => (
             <Link
-              key={cat}
-              href={`/channels?category=${encodeURIComponent(cat)}`}
+              key={cat.id}
+              href={`/channels?category=${encodeURIComponent(cat.name)}`}
               className={cn(
                 "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                categoryFilter === cat
+                categoryFilter === cat.name
                   ? "bg-primary text-primary-foreground border-primary"
                   : "border-input bg-background text-foreground hover:bg-accent"
               )}
             >
-              {cat} ({count})
+              {cat.name} ({cat._count.channels})
             </Link>
           ))}
         </div>
@@ -138,11 +138,11 @@ export default async function ChannelsPage({
                     {channel.title}
                   </h3>
                   <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    {channel.category && (
-                      <Badge variant="outline" className="text-xs">
-                        {channel.category}
+                    {channel.categories.map((cat) => (
+                      <Badge key={cat.id} variant="outline" className="text-xs">
+                        {cat.name}
                       </Badge>
-                    )}
+                    ))}
                     <Badge variant="secondary" className="text-xs">
                       {channel._count.videos} videos
                     </Badge>

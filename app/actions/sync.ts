@@ -20,6 +20,32 @@ async function getAccessToken(): Promise<string> {
   return getValidAccessToken(session.user.id);
 }
 
+async function setChannelCategories(channelId: string, categoryNames: string[]) {
+  const uniqueNames = [...new Set(categoryNames.filter(Boolean))];
+  if (uniqueNames.length === 0) return;
+
+  // Ensure categories exist
+  const categoryIds: string[] = [];
+  for (const name of uniqueNames) {
+    const cat = await prisma.category.upsert({
+      where: { name },
+      create: { name },
+      update: {},
+    });
+    categoryIds.push(cat.id);
+  }
+
+  // Replace channel categories
+  await prisma.channel.update({
+    where: { id: channelId },
+    data: {
+      categories: {
+        set: categoryIds.map((id) => ({ id })),
+      },
+    },
+  });
+}
+
 export async function syncSubscriptions() {
   const token = await getAccessToken();
   const session = await auth();
@@ -53,22 +79,33 @@ export async function syncSubscriptions() {
   for (const ch of channelDetails) {
     const uploadsPlaylistId = ch.contentDetails?.relatedPlaylists?.uploads;
     const topicIds = ch.topicDetails?.topicIds as string[] | undefined;
-    const category = getCategoryFromTopics(topicIds);
-    const data = {
+    const detectedCategories: string[] = [];
+    if (topicIds) {
+      for (const id of topicIds) {
+        const cat = getCategoryFromTopics([id]);
+        if (cat) detectedCategories.push(cat);
+      }
+    }
+
+    const baseData = {
       id: ch.id,
       title: ch.snippet.title,
       thumbnail: ch.snippet.thumbnails?.medium?.url || ch.snippet.thumbnails?.default?.url,
       uploadsPlaylistId,
       subscriberCount: ch.statistics?.subscriberCount ? parseInt(ch.statistics.subscriberCount, 10) : null,
       videoCount: ch.statistics?.videoCount ? parseInt(ch.statistics.videoCount, 10) : null,
-      category,
       lastSyncedAt: new Date(),
     };
 
     if (existingIds.has(ch.id)) {
-      await prisma.channel.update({ where: { id: ch.id }, data });
+      await prisma.channel.update({ where: { id: ch.id }, data: baseData });
     } else {
-      await prisma.channel.create({ data });
+      await prisma.channel.create({ data: baseData });
+    }
+
+    // Set categories (replaces any auto-detected ones from previous syncs)
+    if (detectedCategories.length > 0) {
+      await setChannelCategories(ch.id, detectedCategories);
     }
   }
 
@@ -93,6 +130,7 @@ export async function syncChannelVideos(channelId: string) {
 
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
+    include: { categories: true },
   });
 
   if (!channel?.uploadsPlaylistId) {
@@ -151,7 +189,7 @@ export async function syncChannelVideos(channelId: string) {
     }
   }
 
-  // Auto-set channel category from most common video category if not set
+  // Auto-set channel category from most common video category if channel has none
   let mostCommonCategory: string | undefined;
   let maxCount = 0;
   for (const [cat, count] of categoryCounts) {
@@ -161,15 +199,14 @@ export async function syncChannelVideos(channelId: string) {
     }
   }
 
-  const channelUpdateData: any = { lastSyncedAt: new Date() };
-  if (mostCommonCategory && !channel?.category) {
-    channelUpdateData.category = mostCommonCategory;
-  }
-
   await prisma.channel.update({
     where: { id: channelId },
-    data: channelUpdateData,
+    data: { lastSyncedAt: new Date() },
   });
+
+  if (mostCommonCategory && channel.categories.length === 0) {
+    await setChannelCategories(channelId, [mostCommonCategory]);
+  }
 
   revalidatePath("/");
   revalidatePath("/channels/[channelId]");
