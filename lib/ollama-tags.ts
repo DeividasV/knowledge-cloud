@@ -23,11 +23,18 @@ export async function extractTagsWithOllama(
   // Check if Ollama is reachable
   try {
     const res = await fetch(`${OLLAMA_HOST}/api/tags`, { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error("[Ollama] /api/tags returned non-OK:", res.status);
+      return null;
+    }
     const data = (await res.json()) as { models?: Array<{ name: string }> };
     const hasModel = data.models?.some((m) => m.name === model || m.name.startsWith(model + ":"));
-    if (!hasModel) return null;
-  } catch {
+    if (!hasModel) {
+      console.error("[Ollama] Model not found:", model, "Available:", data.models?.map(m => m.name));
+      return null;
+    }
+  } catch (e) {
+    console.error("[Ollama] /api/tags failed:", e);
     return null;
   }
 
@@ -81,22 +88,33 @@ Output:`;
       signal: AbortSignal.timeout(180000),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error("[Ollama] /api/generate returned non-OK:", res.status);
+      return null;
+    }
 
-    const data = (await res.json()) as { response?: string };
+    const data = (await res.json()) as { response?: string; done_reason?: string };
     const raw = (data.response?.trim() || "")
       .replace(/^```json\s*/i, "")
       .replace(/\s*```$/i, "");
 
+    console.error("[Ollama] Raw response length:", raw.length, "done_reason:", data.done_reason);
+    console.error("[Ollama] Raw response preview:", raw.slice(0, 200));
+
     // Try to parse as array of objects with relevance scores
     let tags = parseScoredTags(raw);
+    console.error("[Ollama] Parsed scored tags:", tags.length);
 
     // Fallback: try old string-array format
     if (tags.length === 0) {
       tags = parseStringTags(raw);
+      console.error("[Ollama] Parsed string tags:", tags.length);
     }
 
-    if (tags.length === 0) return null;
+    if (tags.length === 0) {
+      console.error("[Ollama] No tags parsed from response");
+      return null;
+    }
 
     // Clean and deduplicate
     const cleaned = tags
@@ -111,7 +129,8 @@ Output:`;
 
     // Dynamic selection based on score distribution (elbow method)
     return selectTagsByScore(deduped);
-  } catch {
+  } catch (e) {
+    console.error("[Ollama] /api/generate threw:", e);
     return null;
   }
 }
