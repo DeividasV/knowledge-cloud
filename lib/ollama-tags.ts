@@ -32,21 +32,21 @@ export async function extractTagsWithOllama(
 
   const context = buildPromptContext(title, transcript);
 
-  const prompt = `You are a topic tag extractor. Given video title and transcript, extract ${maxTags} meaningful topic tags.
+  const prompt = `You are a topic tag extractor. Given a video title and transcript, produce up to ${maxTags} tags that name the central topics, concepts, people, technologies, or domains discussed.
 
-Rules:
-- Tags should be specific topics, concepts, people, technologies, events, or domains.
-- Prefer single-word tags when they are clear (e.g., "physics", "python", "ww2").
-- Use multi-word tags ONLY for proper names or well-known compound terms (e.g., "machine learning", "world war 2", "neural network").
-- Multi-word tags MUST have spaces between words. NEVER concatenate words.
-- All tags must be lowercase.
-- NEVER output generic phrases like "in this video", "today we", "let's talk", etc.
-- NEVER output random sentence fragments.
-- Output ONLY a JSON array of strings. No markdown, no explanation.
+RULES:
+1. QUANTITY: Return BETWEEN 3 and ${maxTags} tags. Fewer is correct when the video has fewer real topics. NEVER pad to hit a number.
+2. CENTRAL THEMES ONLY: Tag what the video is ABOUT, not every noun that appears. If "Australia" is only mentioned in a passing anecdote, do NOT tag it. If a person is only named once in an example, do NOT tag them.
+3. SPECIFIC OVER GENERIC: "neural networks" > "technology"; "quantum entanglement" > "science"; "D-Day landings" > "history".
+4. MULTI-WORD: Use multi-word tags for any concept that needs more than one word. Tags MUST have spaces between words. NEVER concatenate or hyphenate: "machine learning" not "machinelearning" or "machine-learning".
+5. NORMALIZE: All tags lowercase, trimmed. One canonical form per concept — no near-duplicates like "ai" and "artificial intelligence" in the same list; pick the clearest.
+6. LANGUAGE: Output tags in the SAME language as the video's primary language. If the video is mostly Russian, tags must be Russian. If mostly English, tags must be English. Never mix languages in the same tag list.
+7. NO PROHIBITED ITEMS: No generic phrases ("in this video", "let's talk"), no sentence fragments, no timestamps, no numbers as standalone tags, no emotional reactions ("amazing", "shocking"), no speaker names unless they are the subject.
+8. FORMAT: Output ONLY a JSON array of strings. No markdown, no code fences, no prose, no numeric scores.
 
 ${context}
 
-Output: ["tag1", "tag2", ...]`;
+Output:`;
 
   try {
     const res = await fetch(`${OLLAMA_HOST}/api/generate`, {
@@ -86,13 +86,14 @@ Output: ["tag1", "tag2", ...]`;
           .trim()
       )
       .map((t) => splitCamelCase(t))
+      .map((t) => t.replace(/-/g, " "))
       .filter((t) => t.length >= 2 && t.length <= 40)
       .filter((t) => !isGenericFiller(t));
 
-    const unique = [...new Set(cleaned)];
+    const deduped = deduplicateTags(cleaned);
 
     // Assign descending scores
-    return unique.slice(0, maxTags).map((name, i) => ({
+    return deduped.slice(0, maxTags).map((name, i) => ({
       name,
       score: Math.round((maxTags - i) * 12.5 * 100) / 100,
     }));
@@ -117,14 +118,41 @@ function buildPromptContext(title: string, transcript: string | null): string {
 
 function isGenericFiller(tag: string): boolean {
   const fillers = new Set([
+    // English generic
     "video", "youtube", "channel", "today", "talk", "discuss", "look",
     "going", "want", "think", "know", "really", "actually", "basically",
-    "literally", "obviously",
+    "literally", "obviously", "amazing", "shocking", "incredible", "awesome",
     "this video", "in this", "we are", "let us", "going to", "talk about",
+    "hello everyone", "thanks for", "dont forget", "make sure", "in conclusion",
+    // Russian generic
     "сегодня", "видео", "канал", "ролик", "смотрим", "говорим", "обсудим",
-    "давайте", "сейчас", "начнем", "поговорим", "расскажу",
+    "давайте", "сейчас", "начнем", "поговорим", "расскажу", "спасибо",
+    "всем привет", "не забудьте", "обязательно", "в заключение",
   ]);
   return fillers.has(tag.toLowerCase());
+}
+
+/**
+ * Normalize near-duplicate tags to a canonical form.
+ * E.g. "ai" and "artificial intelligence" → keep only "artificial intelligence"
+ */
+function deduplicateTags(tags: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const tag of tags) {
+    const normalized = tag.toLowerCase().trim();
+    // Skip if this tag is a substring of an already-kept tag, or vice versa
+    const isDuplicate = Array.from(seen).some(
+      (s) => s !== normalized && (s.includes(normalized) || normalized.includes(s))
+    );
+    if (!isDuplicate) {
+      result.push(tag);
+      seen.add(normalized);
+    }
+  }
+
+  return result;
 }
 
 /**
