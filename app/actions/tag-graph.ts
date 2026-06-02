@@ -66,6 +66,30 @@ export async function getTagGraph(
     include: { tag: true },
   });
 
+  // Get user's maxTags setting to only use top-N tags per video
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { maxTagsPerVideo: true },
+  });
+  const maxTagsPerVideo = user?.maxTagsPerVideo ?? 8;
+
+  // Group videoTags by video, then keep only top-N per video by score
+  const tagsByVideo = new Map<string, typeof videoTags>();
+  for (const vt of videoTags) {
+    let arr = tagsByVideo.get(vt.videoId);
+    if (!arr) {
+      arr = [];
+      tagsByVideo.set(vt.videoId, arr);
+    }
+    arr.push(vt);
+  }
+
+  const filteredVideoTags: typeof videoTags = [];
+  for (const [, tags] of tagsByVideo) {
+    tags.sort((a, b) => b.score - a.score);
+    filteredVideoTags.push(...tags.slice(0, maxTagsPerVideo));
+  }
+
   // Group by tag
   const tagMap = new Map<
     string,
@@ -78,7 +102,7 @@ export async function getTagGraph(
     }
   >();
 
-  for (const vt of videoTags) {
+  for (const vt of filteredVideoTags) {
     let data = tagMap.get(vt.tagId);
     if (!data) {
       data = {
