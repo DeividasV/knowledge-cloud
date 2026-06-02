@@ -127,6 +127,15 @@ export async function syncSubscriptions() {
 
 export async function syncChannelVideos(channelId: string) {
   const token = await getAccessToken();
+  const session = await auth();
+  const userId = session!.user!.id;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { maxVideosPerChannelSync: true, minVideoDurationSec: true },
+  });
+  const maxVideos = user?.maxVideosPerChannelSync ?? 500;
+  const minDuration = user?.minVideoDurationSec ?? 300;
 
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
@@ -144,7 +153,7 @@ export async function syncChannelVideos(channelId: string) {
     const data = await fetchPlaylistItems(token, channel.uploadsPlaylistId, pageToken);
     allItems.push(...(data.items || []));
     pageToken = data.nextPageToken;
-  } while (pageToken && allItems.length < 200); // limit to avoid quota overuse
+  } while (pageToken && allItems.length < maxVideos);
 
   const videoIds = allItems.map((item: any) => item.snippet.resourceId.videoId).filter(Boolean);
 
@@ -168,8 +177,8 @@ export async function syncChannelVideos(channelId: string) {
   for (const v of videoDetails) {
     const durationSec = parseDuration(v.contentDetails.duration);
 
-    // Skip short videos (≤5 minutes)
-    if (durationSec > 0 && durationSec <= 300) {
+    // Skip short videos (under minimum duration)
+    if (durationSec > 0 && durationSec <= minDuration) {
       if (existingIds.has(v.id)) {
         shortsToDelete.push(v.id);
       }

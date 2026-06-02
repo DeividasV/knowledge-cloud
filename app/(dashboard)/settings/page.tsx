@@ -5,11 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { syncSubscriptions, syncChannelVideos } from "@/app/actions/sync";
 import { forceReauth } from "@/app/actions/auth";
-import { getTranscriptStats, getMaxTagsSetting } from "@/app/actions/videos";
+import { getTranscriptStats, getMaxTagsSetting, getMaxVideosSetting, getMinDurationSetting } from "@/app/actions/videos";
 import { SyncProgressButton } from "@/components/sync-progress";
 import { TranscriptBulkFetch } from "@/components/transcript-bulk-fetch";
 import { PendingButton } from "@/components/pending-button";
 import { TagSettings } from "@/components/tag-settings";
+import { SyncSettings } from "@/components/sync-settings";
+import { DurationSettings } from "@/components/duration-settings";
 import { RefreshCw, AlertTriangle, KeyRound, FileText, Sparkles, CheckCircle } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 
@@ -38,6 +40,8 @@ export default async function SettingsPage() {
 
   const transcriptStats = await getTranscriptStats();
   const maxTags = await getMaxTagsSetting();
+  const maxVideos = await getMaxVideosSetting();
+  const minDuration = await getMinDurationSetting();
 
   // Get IDs of videos without transcripts for bulk fetch
   const videosWithoutTranscript = await prisma.video.findMany({
@@ -99,6 +103,8 @@ export default async function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <SyncSettings initialMaxVideos={maxVideos} />
+          <DurationSettings initialMinDuration={minDuration} />
           <div className="flex items-center gap-4">
             <form action={syncSubscriptions}>
               <PendingButton disabled={!hasYouTubeScope} pendingText="Syncing...">

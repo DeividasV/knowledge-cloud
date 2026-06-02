@@ -533,3 +533,41 @@ export async function setMaxTagsSetting(value: number) {
   });
   return maxTags;
 }
+
+export async function getMaxVideosSetting() {
+  const userId = await getUserId();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { maxVideosPerChannelSync: true },
+  });
+  return user?.maxVideosPerChannelSync ?? 500;
+}
+
+export async function setMaxVideosSetting(value: number) {
+  const userId = await getUserId();
+  const maxVideos = Math.max(50, Math.min(5000, Math.round(value)));
+  await prisma.user.update({
+    where: { id: userId },
+    data: { maxVideosPerChannelSync: maxVideos },
+  });
+  return maxVideos;
+}
+
+export async function getMinDurationSetting() {
+  const userId = await getUserId();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { minVideoDurationSec: true },
+  });
+  return user?.minVideoDurationSec ?? 300;
+}
+
+export async function setMinDurationSetting(value: number) {
+  const userId = await getUserId();
+  const minSec = Math.max(0, Math.min(600, Math.round(value)));
+  await prisma.user.update({
+    where: { id: userId },
+    data: { minVideoDurationSec: minSec },
+  });
+  return minSec;
+}

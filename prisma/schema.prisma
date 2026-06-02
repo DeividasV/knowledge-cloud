@@ -44,9 +44,11 @@ model User {
   sessions        Session[]
   videoStates     UserVideo[]
   channels        Channel[]
-  lastSyncAt      DateTime?
-  maxTagsPerVideo Int         @default(8)
-  createdAt       DateTime    @default(now())
+  lastSyncAt             DateTime?
+  maxTagsPerVideo        Int         @default(8)
+  maxVideosPerChannelSync Int        @default(500)
+  minVideoDurationSec    Int         @default(300)
+  createdAt              DateTime    @default(now())
 }
 
 model VerificationToken {
