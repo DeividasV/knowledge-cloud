@@ -23,18 +23,11 @@ export async function extractTagsWithOllama(
   // Check if Ollama is reachable
   try {
     const res = await fetch(`${OLLAMA_HOST}/api/tags`, { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) {
-      console.error("[Ollama] /api/tags returned non-OK:", res.status);
-      return null;
-    }
+    if (!res.ok) return null;
     const data = (await res.json()) as { models?: Array<{ name: string }> };
     const hasModel = data.models?.some((m) => m.name === model || m.name.startsWith(model + ":"));
-    if (!hasModel) {
-      console.error("[Ollama] Model not found:", model, "Available:", data.models?.map(m => m.name));
-      return null;
-    }
-  } catch (e) {
-    console.error("[Ollama] /api/tags failed:", e);
+    if (!hasModel) return null;
+  } catch {
     return null;
   }
 
@@ -50,13 +43,13 @@ RULES:
 5. NORMALIZE: All tags lowercase, trimmed. One canonical form per concept — no near-duplicates like "ai" and "artificial intelligence" in the same list; pick the clearest.
 6. LANGUAGE: Output tags in the SAME language as the video's primary language. If the video is mostly Russian, tags must be Russian. If mostly English, tags must be English. Never mix languages in the same tag list.
 7. NO PROHIBITED ITEMS: No generic phrases ("in this video", "let's talk"), no sentence fragments, no timestamps, no numbers as standalone tags, no emotional reactions ("amazing", "shocking"), no speaker names unless they are the subject.
-8. SCORING: Assign each tag a relevance score from 0.00 to 1.00:
-   - 0.90-1.00 = central theme, what the video is primarily about
-   - 0.70-0.89 = important sub-topic, discussed in meaningful detail
-   - 0.50-0.69 = mentioned and relevant, but secondary
-   - 0.30-0.49 = briefly mentioned, tangential
+8. SCORING: Assign each tag a relevance score from 0.00 to 1.00. Be BRUTALLY honest — do NOT space scores evenly:
+   - 0.90-1.00 = central theme, what the video is primarily about (1-3 tags max)
+   - 0.70-0.89 = important sub-topic (2-4 tags max)
+   - 0.50-0.69 = secondary, mentioned but not central (a few tags)
+   - 0.30-0.49 = tangential, barely relevant (rarely include)
    - below 0.30 = do not include
-   Be honest with scores. A tag that is only briefly mentioned should get 0.40, not 0.80.
+   Most videos should have a CLEAR gap between strong tags (0.70+) and weak tags (0.50-). Do NOT give 15 tags all between 0.50 and 0.95 — that defeats the purpose.
 9. FORMAT: Output ONLY a JSON array of objects. Each object has "tag" (string) and "relevance" (number). No markdown, no code fences, no prose.
 
 Example:
@@ -88,33 +81,22 @@ Output:`;
       signal: AbortSignal.timeout(180000),
     });
 
-    if (!res.ok) {
-      console.error("[Ollama] /api/generate returned non-OK:", res.status);
-      return null;
-    }
+    if (!res.ok) return null;
 
-    const data = (await res.json()) as { response?: string; done_reason?: string };
+    const data = (await res.json()) as { response?: string };
     const raw = (data.response?.trim() || "")
       .replace(/^```json\s*/i, "")
       .replace(/\s*```$/i, "");
 
-    console.error("[Ollama] Raw response length:", raw.length, "done_reason:", data.done_reason);
-    console.error("[Ollama] Raw response preview:", raw.slice(0, 200));
-
     // Try to parse as array of objects with relevance scores
     let tags = parseScoredTags(raw);
-    console.error("[Ollama] Parsed scored tags:", tags.length);
 
     // Fallback: try old string-array format
     if (tags.length === 0) {
       tags = parseStringTags(raw);
-      console.error("[Ollama] Parsed string tags:", tags.length);
     }
 
-    if (tags.length === 0) {
-      console.error("[Ollama] No tags parsed from response");
-      return null;
-    }
+    if (tags.length === 0) return null;
 
     // Clean and deduplicate
     const cleaned = tags
@@ -129,8 +111,7 @@ Output:`;
 
     // Dynamic selection based on score distribution (elbow method)
     return selectTagsByScore(deduped);
-  } catch (e) {
-    console.error("[Ollama] /api/generate threw:", e);
+  } catch {
     return null;
   }
 }
@@ -232,9 +213,11 @@ function deduplicateTags(tags: TagResult[]): TagResult[] {
 }
 
 /**
- * Dynamically select tags based on score distribution using the elbow method.
- * Finds the largest score drop and cuts there. If no clear elbow, keeps all.
- * Always keeps at least 2 tags when available.
+ * Select tags using a two-pass approach:
+ * 1. Look for the latest natural quality drop (elbow) in the score distribution.
+ * 2. If scores are evenly spaced (no elbow), fall back to an absolute quality band.
+ * This handles both rich videos with clear topic hierarchies AND videos where
+ * the LLM spaces scores too evenly.
  */
 function selectTagsByScore(tags: TagResult[]): TagResult[] {
   if (tags.length <= 2) return tags;
@@ -242,25 +225,32 @@ function selectTagsByScore(tags: TagResult[]): TagResult[] {
   // Sort by score descending (best first)
   const sorted = [...tags].sort((a, b) => b.score - a.score);
 
-  // Find the largest gap between consecutive scores
-  let maxGap = 0;
+  // Pass 1: find the latest-occurring meaningful gap (>= 0.06).
+  // Scanning from the end keeps more tags while still cutting at a quality drop.
   let cutIdx = sorted.length;
-
-  for (let i = 1; i < sorted.length; i++) {
+  for (let i = sorted.length - 1; i >= 1; i--) {
     const gap = sorted[i - 1].score - sorted[i].score;
-    if (gap > maxGap) {
-      maxGap = gap;
+    if (gap >= 0.06) {
       cutIdx = i;
+      break;
     }
   }
 
-  // If there's a significant gap (>= 0.10), cut there
-  if (maxGap >= 0.10) {
-    return sorted.slice(0, Math.max(2, cutIdx));
+  if (cutIdx < sorted.length) {
+    // Keep at least 4 tags if a gap is found, but respect the cut
+    return sorted.slice(0, Math.max(4, cutIdx));
   }
 
-  // No clear elbow — all tags are similarly relevant, keep them all
-  return sorted;
+  // Pass 2: no natural gap found (evenly-spaced scores).
+  // Use an absolute quality band: keep tags with score >= 0.65.
+  const selected = sorted.filter((t) => t.score >= 0.65);
+
+  // Ensure at least 2 tags if available
+  if (selected.length < 2 && sorted.length >= 2) {
+    return sorted.slice(0, 2);
+  }
+
+  return selected;
 }
 
 export async function getAvailableOllamaModel(): Promise<string | null> {
