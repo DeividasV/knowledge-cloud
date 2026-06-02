@@ -16,7 +16,7 @@ const DEFAULT_MODEL = "qwen3:8b";
 export async function extractTagsWithOllama(
   title: string,
   transcript: string | null,
-  extractLimit = 50
+  extractLimit = 15
 ): Promise<TagResult[] | null> {
   const model = process.env.OLLAMA_MODEL || DEFAULT_MODEL;
 
@@ -72,12 +72,13 @@ Output:`;
         prompt,
         stream: false,
         think: false,
+        keep_alive: "30m",
         options: {
           temperature: 0.3,
           num_predict: 600,
         },
       }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(180000),
     });
 
     if (!res.ok) return null;
