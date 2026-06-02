@@ -71,9 +71,10 @@ Output:`;
         model,
         prompt,
         stream: false,
+        think: false,
         options: {
           temperature: 0.3,
-          num_predict: 400,
+          num_predict: 600,
         },
       }),
       signal: AbortSignal.timeout(30000),
@@ -82,7 +83,9 @@ Output:`;
     if (!res.ok) return null;
 
     const data = (await res.json()) as { response?: string };
-    const raw = data.response?.trim() || "";
+    const raw = (data.response?.trim() || "")
+      .replace(/^```json\s*/i, "")
+      .replace(/\s*```$/i, "");
 
     // Try to parse as array of objects with relevance scores
     let tags = parseScoredTags(raw);
