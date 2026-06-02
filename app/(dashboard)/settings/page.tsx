@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { syncSubscriptions, syncChannelVideos } from "@/app/actions/sync";
+import { syncSubscriptions } from "@/app/actions/sync";
 import { forceReauth } from "@/app/actions/auth";
 import { getTranscriptStats, getMaxTagsSetting, getMaxVideosSetting, getMinDurationSetting } from "@/app/actions/videos";
 import { SyncProgressButton } from "@/components/sync-progress";
@@ -189,41 +189,6 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <TagSettings initialMaxTags={maxTags} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Channel Sync Status</CardTitle>
-          <CardDescription>
-            Individual channel video sync status.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {user.channels.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No channels synced yet.</p>
-          ) : (
-            user.channels.map((channel) => (
-              <div
-                key={channel.id}
-                className="flex items-center justify-between rounded-lg border p-3"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">{channel.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {channel.lastSyncedAt
-                      ? `Last synced: ${new Date(channel.lastSyncedAt).toLocaleString()}`
-                      : "Never synced"}
-                  </p>
-                </div>
-                <form action={syncChannelVideos.bind(null, channel.id)}>
-                  <PendingButton variant="ghost" size="sm" disabled={!hasYouTubeScope} pendingText="">
-                    <RefreshCw className="h-4 w-4" />
-                  </PendingButton>
-                </form>
-              </div>
-            ))
-          )}
         </CardContent>
       </Card>
 
