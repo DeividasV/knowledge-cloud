@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { generateTagsForChannel } from "@/app/actions/videos";
+import { generateTagsBatch, getChannelVideoIds } from "@/app/actions/videos";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Sparkles, Loader2, CheckCircle } from "lucide-react";
+
+const BATCH_SIZE = 5;
 
 export function ChannelTagGenerate({
   channelId,
@@ -14,27 +16,40 @@ export function ChannelTagGenerate({
   channelId: string;
   videoCount: number;
 }) {
-  const [isPending, startTransition] = useTransition();
   const [progress, setProgress] = useState<{
     total: number;
     done: number;
     isRunning: boolean;
   } | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
   const router = useRouter();
 
-  async function runGenerate() {
+  const runGenerate = useCallback(async () => {
+    setIsRunning(true);
     setProgress({ total: videoCount, done: 0, isRunning: true });
 
-    const result = await generateTagsForChannel(channelId);
+    try {
+      const videoIds = await getChannelVideoIds(channelId);
+      const total = videoIds.length;
+      let done = 0;
 
-    setProgress({
-      total: result.processed,
-      done: result.processed,
-      isRunning: false,
-    });
+      setProgress({ total, done: 0, isRunning: true });
 
-    router.refresh();
-  }
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const batch = videoIds.slice(i, i + BATCH_SIZE);
+        await generateTagsBatch(batch);
+        done += batch.length;
+        setProgress({ total, done, isRunning: true });
+      }
+
+      setProgress({ total, done, isRunning: false });
+    } catch (e) {
+      console.error("Batch tag generation failed:", e);
+    } finally {
+      setIsRunning(false);
+      router.refresh();
+    }
+  }, [channelId, videoCount, router]);
 
   if (videoCount === 0 && !progress) {
     return (
@@ -48,18 +63,18 @@ export function ChannelTagGenerate({
   return (
     <div className="space-y-3">
       <Button
-        onClick={() => startTransition(runGenerate)}
-        disabled={isPending || progress?.isRunning || videoCount === 0}
+        onClick={runGenerate}
+        disabled={isRunning || videoCount === 0}
         variant="outline"
         size="sm"
       >
-        {progress?.isRunning ? (
+        {isRunning ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         ) : (
           <Sparkles className="mr-2 h-4 w-4" />
         )}
-        {progress?.isRunning
-          ? "Regenerating..."
+        {isRunning
+          ? `Regenerating ${progress?.done ?? 0}/${progress?.total ?? videoCount}...`
           : `Regenerate tags (${videoCount})`}
       </Button>
 
@@ -68,7 +83,7 @@ export function ChannelTagGenerate({
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
               {progress.isRunning
-                ? "Regenerating tags..."
+                ? `Processing videos...`
                 : `Done! ${progress.done} videos processed`}
             </span>
             <span className="font-medium">

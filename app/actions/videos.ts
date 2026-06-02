@@ -606,3 +606,99 @@ export async function setMinDurationSetting(value: number) {
   });
   return minSec;
 }
+
+
+// ── Batch tag generation for progress tracking ──────────────────────────
+
+export async function getChannelVideoIds(channelId: string) {
+  await getUserId();
+  const videos = await prisma.video.findMany({
+    where: { channelId },
+    select: { id: true },
+    orderBy: { publishedAt: "desc" },
+  });
+  return videos.map((v) => v.id);
+}
+
+export async function getUntaggedVideoIds(limit = 100) {
+  await getUserId();
+  const videos = await prisma.video.findMany({
+    where: { videoTags: { none: {} } },
+    select: { id: true },
+    take: limit,
+    orderBy: { publishedAt: "desc" },
+  });
+  return videos.map((v) => v.id);
+}
+
+export async function getAllVideoIds(limit = 100) {
+  await getUserId();
+  const videos = await prisma.video.findMany({
+    select: { id: true },
+    take: limit,
+    orderBy: { publishedAt: "desc" },
+  });
+  return videos.map((v) => v.id);
+}
+
+export async function generateTagsBatch(videoIds: string[]) {
+  await getUserId();
+  const maxTags = await getUserMaxTags();
+
+  if (videoIds.length === 0) {
+    return { processed: 0, generated: 0 };
+  }
+
+  const videos = await prisma.video.findMany({
+    where: { id: { in: videoIds } },
+    select: { id: true, title: true, description: true, transcript: true },
+  });
+
+  // Check Ollama availability once upfront
+  const ollamaModel = await getAvailableOllamaModel();
+
+  const allVideos = await prisma.video.findMany({
+    select: { title: true, description: true, transcript: true },
+  });
+  const corpus = buildCorpus(allVideos);
+
+  let generated = 0;
+  for (const video of videos) {
+    let extractedTags;
+
+    if (ollamaModel) {
+      extractedTags = await extractTagsWithOllama(video.title, video.transcript, maxTags);
+    }
+
+    if (!extractedTags || extractedTags.length === 0) {
+      extractedTags = extractTags(video.title, video.description, video.transcript, {
+        maxTags,
+        corpusPhrases: corpus,
+      });
+    }
+
+    if (extractedTags.length > 0) {
+      await prisma.videoTag.deleteMany({ where: { videoId: video.id } });
+
+      for (const { name, score } of extractedTags) {
+        const tag = await prisma.tag.upsert({
+          where: { name },
+          create: { name },
+          update: {},
+        });
+
+        await prisma.videoTag.create({
+          data: {
+            videoId: video.id,
+            tagId: tag.id,
+            score,
+          },
+        });
+      }
+
+      generated++;
+    }
+  }
+
+  return { processed: videos.length, generated };
+}

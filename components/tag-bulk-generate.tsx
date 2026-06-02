@@ -1,67 +1,70 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  generateTagsForUntagged,
-  generateTagsForAll,
-  getTagStats,
+  generateTagsBatch,
+  getUntaggedVideoIds,
+  getAllVideoIds,
 } from "@/app/actions/videos";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Sparkles, Loader2, RefreshCw } from "lucide-react";
 
+const BATCH_SIZE = 5;
+
 type Mode = "untagged" | "all";
 
 export function TagBulkGenerate() {
-  const [isPending, startTransition] = useTransition();
   const [progress, setProgress] = useState<{
     processed: number;
     total: number;
     isRunning: boolean;
     mode: Mode;
   } | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
   const router = useRouter();
 
-  async function runGenerate(mode: Mode) {
+  const runGenerate = useCallback(async (mode: Mode) => {
+    setIsRunning(true);
     setProgress({ processed: 0, total: 0, isRunning: true, mode });
 
-    const stats = await getTagStats();
-    const totalToProcess =
-      mode === "untagged"
-        ? Math.min(stats.untaggedVideos, 100)
-        : Math.min(stats.taggedVideos + stats.untaggedVideos, 100);
+    try {
+      const videoIds =
+        mode === "untagged"
+          ? await getUntaggedVideoIds(100)
+          : await getAllVideoIds(100);
 
-    if (totalToProcess === 0) {
-      setProgress({ processed: 0, total: 0, isRunning: false, mode });
-      return;
+      const total = videoIds.length;
+      if (total === 0) {
+        setProgress({ processed: 0, total: 0, isRunning: false, mode });
+        setIsRunning(false);
+        return;
+      }
+
+      setProgress({ processed: 0, total, isRunning: true, mode });
+
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const batch = videoIds.slice(i, i + BATCH_SIZE);
+        await generateTagsBatch(batch);
+        setProgress({ processed: Math.min(i + batch.length, total), total, isRunning: true, mode });
+      }
+
+      setProgress({ processed: total, total, isRunning: false, mode });
+    } catch (e) {
+      console.error("Batch tag generation failed:", e);
+    } finally {
+      setIsRunning(false);
+      router.refresh();
     }
-
-    setProgress({ processed: 0, total: totalToProcess, isRunning: true, mode });
-
-    const result =
-      mode === "untagged"
-        ? await generateTagsForUntagged(100)
-        : await generateTagsForAll(100);
-
-    setProgress({
-      processed: result.processed,
-      total: totalToProcess,
-      isRunning: false,
-      mode,
-    });
-
-    router.refresh();
-  }
-
-  const isRunning = progress?.isRunning ?? false;
+  }, [router]);
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
         <Button
-          onClick={() => startTransition(() => runGenerate("untagged"))}
-          disabled={isPending || isRunning}
+          onClick={() => runGenerate("untagged")}
+          disabled={isRunning}
           variant="outline"
         >
           {isRunning && progress?.mode === "untagged" ? (
@@ -73,8 +76,8 @@ export function TagBulkGenerate() {
         </Button>
 
         <Button
-          onClick={() => startTransition(() => runGenerate("all"))}
-          disabled={isPending || isRunning}
+          onClick={() => runGenerate("all")}
+          disabled={isRunning}
           variant="outline"
         >
           {isRunning && progress?.mode === "all" ? (
