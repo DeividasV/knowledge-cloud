@@ -5,22 +5,12 @@ import { auth } from "@/lib/auth";
 import { VideoStatus } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { fetchVideoTranscript } from "@/lib/transcript";
-import { extractTags, buildCorpus } from "@/lib/tags";
 import { extractTagsWithOllama, getAvailableOllamaModel } from "@/lib/ollama-tags";
 
 async function getUserId(): Promise<string> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not authenticated");
   return session.user.id;
-}
-
-async function getUserMaxTags(): Promise<number> {
-  const userId = await getUserId();
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { maxTagsPerVideo: true },
-  });
-  return user?.maxTagsPerVideo ?? 8;
 }
 
 export async function updateVideoStatus(
@@ -281,7 +271,6 @@ export async function getChannelVideosWithoutTranscript(channelId: string) {
 
 export async function generateVideoTags(videoId: string) {
   await getUserId();
-  const maxTags = await getUserMaxTags();
 
   const video = await prisma.video.findUnique({
     where: { id: videoId },
@@ -290,20 +279,13 @@ export async function generateVideoTags(videoId: string) {
 
   if (!video) throw new Error("Video not found");
 
-  // Try LLM-powered extraction first (local Ollama)
-  let tagNames = await extractTagsWithOllama(video.title, video.transcript, maxTags);
-
-  // Fallback to TF-IDF if Ollama is not available
-  if (!tagNames || tagNames.length === 0) {
-    const allVideos = await prisma.video.findMany({
-      select: { title: true, description: true, transcript: true },
-    });
-    const corpus = buildCorpus(allVideos);
-    tagNames = extractTags(video.title, video.description, video.transcript, {
-      maxTags,
-      corpusPhrases: corpus,
-    });
+  // LLM-powered extraction only (local Ollama)
+  const extracted = await extractTagsWithOllama(video.title, video.transcript);
+  if (!extracted || extracted.length === 0) {
+    throw new Error("Tag extraction failed. Make sure Ollama is running with the model loaded.");
   }
+
+  const tagNames = extracted;
 
   // Delete existing videoTag relations and create new ones with scores
   await prisma.videoTag.deleteMany({ where: { videoId } });
@@ -331,7 +313,6 @@ export async function generateVideoTags(videoId: string) {
 
 export async function generateTagsForUntagged(limit = 100) {
   await getUserId();
-  const maxTags = await getUserMaxTags();
 
   // Find videos without tags
   const untaggedVideos = await prisma.video.findMany({
@@ -350,51 +331,38 @@ export async function generateTagsForUntagged(limit = 100) {
     return { processed: 0, tags: [] };
   }
 
-  // Check Ollama availability once upfront
+  // LLM only — fail fast if Ollama is not available
   const ollamaModel = await getAvailableOllamaModel();
-
-  // Build corpus from all videos for TF-IDF
-  const allVideos = await prisma.video.findMany({
-    select: { title: true, description: true, transcript: true },
-  });
-  const corpus = buildCorpus(allVideos);
+  if (!ollamaModel) {
+    throw new Error("Ollama is not available. Please start Ollama and try again.");
+  }
 
   const results = [];
   for (const video of untaggedVideos) {
-    let extractedTags;
+    const extracted = await extractTagsWithOllama(video.title, video.transcript);
+    if (!extracted || extracted.length === 0) continue;
 
-    if (ollamaModel) {
-      extractedTags = await extractTagsWithOllama(video.title, video.transcript, maxTags);
-    }
+    const tagNames = extracted;
 
-    if (!extractedTags || extractedTags.length === 0) {
-      extractedTags = extractTags(video.title, video.description, video.transcript, {
-        maxTags,
-        corpusPhrases: corpus,
+    await prisma.videoTag.deleteMany({ where: { videoId: video.id } });
+
+    for (const { name, score } of tagNames) {
+      const tag = await prisma.tag.upsert({
+        where: { name },
+        create: { name },
+        update: {},
+      });
+
+      await prisma.videoTag.create({
+        data: {
+          videoId: video.id,
+          tagId: tag.id,
+          score,
+        },
       });
     }
 
-    if (extractedTags.length > 0) {
-      await prisma.videoTag.deleteMany({ where: { videoId: video.id } });
-
-      for (const { name, score } of extractedTags) {
-        const tag = await prisma.tag.upsert({
-          where: { name },
-          create: { name },
-          update: {},
-        });
-
-        await prisma.videoTag.create({
-          data: {
-            videoId: video.id,
-            tagId: tag.id,
-            score,
-          },
-        });
-      }
-
-      results.push({ videoId: video.id, tags: extractedTags.map((t) => t.name) });
-    }
+    results.push({ videoId: video.id, tags: tagNames.map((t) => t.name) });
   }
 
   revalidatePath("/videos");
@@ -404,7 +372,6 @@ export async function generateTagsForUntagged(limit = 100) {
 
 export async function generateTagsForAll(limit = 100) {
   await getUserId();
-  const maxTags = await getUserMaxTags();
 
   const videos = await prisma.video.findMany({
     where: {
@@ -421,50 +388,38 @@ export async function generateTagsForAll(limit = 100) {
     return { processed: 0, tags: [] };
   }
 
-  // Check Ollama availability once upfront
+  // LLM only — fail fast if Ollama is not available
   const ollamaModel = await getAvailableOllamaModel();
-
-  const allVideos = await prisma.video.findMany({
-    select: { title: true, description: true, transcript: true },
-  });
-  const corpus = buildCorpus(allVideos);
+  if (!ollamaModel) {
+    throw new Error("Ollama is not available. Please start Ollama and try again.");
+  }
 
   const results = [];
   for (const video of videos) {
-    let extractedTags;
+    const extracted = await extractTagsWithOllama(video.title, video.transcript);
+    if (!extracted || extracted.length === 0) continue;
 
-    if (ollamaModel) {
-      extractedTags = await extractTagsWithOllama(video.title, video.transcript, maxTags);
-    }
+    const tagNames = extracted;
 
-    if (!extractedTags || extractedTags.length === 0) {
-      extractedTags = extractTags(video.title, video.description, video.transcript, {
-        maxTags,
-        corpusPhrases: corpus,
+    await prisma.videoTag.deleteMany({ where: { videoId: video.id } });
+
+    for (const { name, score } of tagNames) {
+      const tag = await prisma.tag.upsert({
+        where: { name },
+        create: { name },
+        update: {},
+      });
+
+      await prisma.videoTag.create({
+        data: {
+          videoId: video.id,
+          tagId: tag.id,
+          score,
+        },
       });
     }
 
-    if (extractedTags.length > 0) {
-      await prisma.videoTag.deleteMany({ where: { videoId: video.id } });
-
-      for (const { name, score } of extractedTags) {
-        const tag = await prisma.tag.upsert({
-          where: { name },
-          create: { name },
-          update: {},
-        });
-
-        await prisma.videoTag.create({
-          data: {
-            videoId: video.id,
-            tagId: tag.id,
-            score,
-          },
-        });
-      }
-
-      results.push({ videoId: video.id, tags: extractedTags.map((t) => t.name) });
-    }
+    results.push({ videoId: video.id, tags: tagNames.map((t) => t.name) });
   }
 
   revalidatePath("/videos");
@@ -474,7 +429,6 @@ export async function generateTagsForAll(limit = 100) {
 
 export async function generateTagsForChannel(channelId: string) {
   await getUserId();
-  const maxTags = await getUserMaxTags();
 
   const videos = await prisma.video.findMany({
     where: { channelId },
@@ -485,52 +439,38 @@ export async function generateTagsForChannel(channelId: string) {
     return { processed: 0, generated: 0 };
   }
 
-  // Check Ollama availability once upfront
+  // LLM only — fail fast if Ollama is not available
   const ollamaModel = await getAvailableOllamaModel();
-
-  const allVideos = await prisma.video.findMany({
-    select: { title: true, description: true, transcript: true },
-  });
-  const corpus = buildCorpus(allVideos);
+  if (!ollamaModel) {
+    throw new Error("Ollama is not available. Please start Ollama and try again.");
+  }
 
   let generated = 0;
   for (const video of videos) {
-    let extractedTags;
+    const extracted = await extractTagsWithOllama(video.title, video.transcript);
+    if (!extracted || extracted.length === 0) continue;
 
-    if (ollamaModel) {
-      // Try LLM first
-      extractedTags = await extractTagsWithOllama(video.title, video.transcript, maxTags);
-    }
+    const tagNames = extracted;
 
-    // Fallback to TF-IDF
-    if (!extractedTags || extractedTags.length === 0) {
-      extractedTags = extractTags(video.title, video.description, video.transcript, {
-        maxTags,
-        corpusPhrases: corpus,
+    await prisma.videoTag.deleteMany({ where: { videoId: video.id } });
+
+    for (const { name, score } of tagNames) {
+      const tag = await prisma.tag.upsert({
+        where: { name },
+        create: { name },
+        update: {},
+      });
+
+      await prisma.videoTag.create({
+        data: {
+          videoId: video.id,
+          tagId: tag.id,
+          score,
+        },
       });
     }
 
-    if (extractedTags.length > 0) {
-      await prisma.videoTag.deleteMany({ where: { videoId: video.id } });
-
-      for (const { name, score } of extractedTags) {
-        const tag = await prisma.tag.upsert({
-          where: { name },
-          create: { name },
-          update: {},
-        });
-
-        await prisma.videoTag.create({
-          data: {
-            videoId: video.id,
-            tagId: tag.id,
-            score,
-          },
-        });
-      }
-
-      generated++;
-    }
+    generated++;
   }
 
   revalidatePath("/videos");
@@ -643,7 +583,6 @@ export async function getAllVideoIds(limit = 100) {
 
 export async function generateTagsBatch(videoIds: string[]) {
   await getUserId();
-  const maxTags = await getUserMaxTags();
 
   if (videoIds.length === 0) {
     return { processed: 0, generated: 0 };
@@ -654,50 +593,38 @@ export async function generateTagsBatch(videoIds: string[]) {
     select: { id: true, title: true, description: true, transcript: true },
   });
 
-  // Check Ollama availability once upfront
+  // LLM only — fail fast if Ollama is not available
   const ollamaModel = await getAvailableOllamaModel();
-
-  const allVideos = await prisma.video.findMany({
-    select: { title: true, description: true, transcript: true },
-  });
-  const corpus = buildCorpus(allVideos);
+  if (!ollamaModel) {
+    throw new Error("Ollama is not available. Please start Ollama and try again.");
+  }
 
   let generated = 0;
   for (const video of videos) {
-    let extractedTags;
+    const extracted = await extractTagsWithOllama(video.title, video.transcript);
+    if (!extracted || extracted.length === 0) continue;
 
-    if (ollamaModel) {
-      extractedTags = await extractTagsWithOllama(video.title, video.transcript, maxTags);
-    }
+    const tagNames = extracted;
 
-    if (!extractedTags || extractedTags.length === 0) {
-      extractedTags = extractTags(video.title, video.description, video.transcript, {
-        maxTags,
-        corpusPhrases: corpus,
+    await prisma.videoTag.deleteMany({ where: { videoId: video.id } });
+
+    for (const { name, score } of tagNames) {
+      const tag = await prisma.tag.upsert({
+        where: { name },
+        create: { name },
+        update: {},
+      });
+
+      await prisma.videoTag.create({
+        data: {
+          videoId: video.id,
+          tagId: tag.id,
+          score,
+        },
       });
     }
 
-    if (extractedTags.length > 0) {
-      await prisma.videoTag.deleteMany({ where: { videoId: video.id } });
-
-      for (const { name, score } of extractedTags) {
-        const tag = await prisma.tag.upsert({
-          where: { name },
-          create: { name },
-          update: {},
-        });
-
-        await prisma.videoTag.create({
-          data: {
-            videoId: video.id,
-            tagId: tag.id,
-            score,
-          },
-        });
-      }
-
-      generated++;
-    }
+    generated++;
   }
 
   return { processed: videos.length, generated };
