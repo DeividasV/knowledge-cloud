@@ -113,11 +113,27 @@ export default async function ChannelPage({
     },
   });
 
+  const untaggedCount = await prisma.video.count({
+    where: {
+      channelId,
+      videoTags: { none: {} },
+    },
+  });
+
+  const missingTranscriptCount = await prisma.video.count({
+    where: {
+      channelId,
+      transcript: null,
+    },
+  });
+
   const counts = {
     all: totalVideos,
     unwatched: unwatchedCount,
     watched: watchedCount,
     notInterested: notInterestedCount,
+    untagged: untaggedCount,
+    missingTranscripts: missingTranscriptCount,
   };
 
   const markAllAsWatched = markAllChannelVideosAsWatched.bind(null, channelId);
@@ -207,8 +223,8 @@ export default async function ChannelPage({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <ChannelTagGenerate channelId={channelId} videoCount={counts.all} />
-          <ChannelTranscriptFetch channelId={channelId} />
+          <ChannelTagGenerate channelId={channelId} videoCount={counts.all} untaggedCount={counts.untagged} />
+          <ChannelTranscriptFetch channelId={channelId} videoCount={counts.all} missingCount={counts.missingTranscripts} />
           <form action={syncChannelVideos.bind(null, channelId)}>
             <PendingButton variant="outline" size="sm" pendingText="Syncing...">
               <RefreshCw className="mr-2 h-4 w-4" />

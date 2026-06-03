@@ -806,6 +806,19 @@ export async function getChannelVideoIds(channelId: string) {
   return videos.map((v) => v.id);
 }
 
+export async function getChannelUntaggedVideoIds(channelId: string) {
+  await getUserId();
+  const videos = await prisma.video.findMany({
+    where: {
+      channelId,
+      videoTags: { none: {} },
+    },
+    select: { id: true },
+    orderBy: { publishedAt: "desc" },
+  });
+  return videos.map((v) => v.id);
+}
+
 export async function getUntaggedVideoIds(limit = 100) {
   await getUserId();
   const videos = await prisma.video.findMany({
