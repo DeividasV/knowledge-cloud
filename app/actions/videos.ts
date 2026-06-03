@@ -5,7 +5,10 @@ import { auth } from "@/lib/auth";
 import { VideoStatus } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { fetchVideoTranscript } from "@/lib/transcript";
-import { extractTagsWithOllama, getAvailableOllamaModel } from "@/lib/ollama-tags";
+import {
+  extractVideoTags,
+  checkTagExtractionAvailable,
+} from "@/lib/tag-extractor";
 
 async function getUserId(): Promise<string> {
   const session = await auth();
@@ -279,10 +282,10 @@ export async function generateVideoTags(videoId: string) {
 
   if (!video) throw new Error("Video not found");
 
-  // LLM-powered extraction only (local Ollama)
-  const extracted = await extractTagsWithOllama(video.title, video.transcript);
+  // LLM-powered extraction
+  const extracted = await extractVideoTags(video.title, video.transcript);
   if (!extracted || extracted.length === 0) {
-    throw new Error("Tag extraction failed. Make sure Ollama is running with the model loaded.");
+    throw new Error("Tag extraction failed. Check your extraction backend (Ollama or Gemini).");
   }
 
   const tagNames = extracted;
@@ -331,15 +334,17 @@ export async function generateTagsForUntagged(limit = 100) {
     return { processed: 0, tags: [] };
   }
 
-  // LLM only — fail fast if Ollama is not available
-  const ollamaModel = await getAvailableOllamaModel();
-  if (!ollamaModel) {
-    throw new Error("Ollama is not available. Please start Ollama and try again.");
+  // LLM only — fail fast if extraction backend is not available
+  const available = await checkTagExtractionAvailable();
+  if (!available) {
+    throw new Error(
+      "Tag extraction backend is not available. Check your Ollama server or Gemini API key."
+    );
   }
 
   const results = [];
   for (const video of untaggedVideos) {
-    const extracted = await extractTagsWithOllama(video.title, video.transcript);
+    const extracted = await extractVideoTags(video.title, video.transcript);
     if (!extracted || extracted.length === 0) continue;
 
     const tagNames = extracted;
@@ -388,15 +393,17 @@ export async function generateTagsForAll(limit = 100) {
     return { processed: 0, tags: [] };
   }
 
-  // LLM only — fail fast if Ollama is not available
-  const ollamaModel = await getAvailableOllamaModel();
-  if (!ollamaModel) {
-    throw new Error("Ollama is not available. Please start Ollama and try again.");
+  // LLM only — fail fast if extraction backend is not available
+  const available = await checkTagExtractionAvailable();
+  if (!available) {
+    throw new Error(
+      "Tag extraction backend is not available. Check your Ollama server or Gemini API key."
+    );
   }
 
   const results = [];
   for (const video of videos) {
-    const extracted = await extractTagsWithOllama(video.title, video.transcript);
+    const extracted = await extractVideoTags(video.title, video.transcript);
     if (!extracted || extracted.length === 0) continue;
 
     const tagNames = extracted;
@@ -439,15 +446,17 @@ export async function generateTagsForChannel(channelId: string) {
     return { processed: 0, generated: 0 };
   }
 
-  // LLM only — fail fast if Ollama is not available
-  const ollamaModel = await getAvailableOllamaModel();
-  if (!ollamaModel) {
-    throw new Error("Ollama is not available. Please start Ollama and try again.");
+  // LLM only — fail fast if extraction backend is not available
+  const available = await checkTagExtractionAvailable();
+  if (!available) {
+    throw new Error(
+      "Tag extraction backend is not available. Check your Ollama server or Gemini API key."
+    );
   }
 
   let generated = 0;
   for (const video of videos) {
-    const extracted = await extractTagsWithOllama(video.title, video.transcript);
+    const extracted = await extractVideoTags(video.title, video.transcript);
     if (!extracted || extracted.length === 0) continue;
 
     const tagNames = extracted;
@@ -593,15 +602,17 @@ export async function generateTagsBatch(videoIds: string[]) {
     select: { id: true, title: true, description: true, transcript: true },
   });
 
-  // LLM only — fail fast if Ollama is not available
-  const ollamaModel = await getAvailableOllamaModel();
-  if (!ollamaModel) {
-    throw new Error("Ollama is not available. Please start Ollama and try again.");
+  // LLM only — fail fast if extraction backend is not available
+  const available = await checkTagExtractionAvailable();
+  if (!available) {
+    throw new Error(
+      "Tag extraction backend is not available. Check your Ollama server or Gemini API key."
+    );
   }
 
   let generated = 0;
   for (const video of videos) {
-    const extracted = await extractTagsWithOllama(video.title, video.transcript);
+    const extracted = await extractVideoTags(video.title, video.transcript);
     if (!extracted || extracted.length === 0) continue;
 
     const tagNames = extracted;
