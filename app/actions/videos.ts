@@ -54,6 +54,20 @@ export async function updateVideoStatus(
   return result;
 }
 
+export async function deleteVideoTags(videoIds: string[]) {
+  await getUserId();
+  if (videoIds.length === 0) return { deleted: 0 };
+
+  const result = await prisma.videoTag.deleteMany({
+    where: { videoId: { in: videoIds } },
+  });
+
+  revalidatePath("/videos");
+  revalidatePath("/channels/[channelId]");
+  revalidatePath("/videos/[videoId]");
+  return { deleted: result.count };
+}
+
 export async function markAllChannelVideosAsWatched(channelId: string) {
   const userId = await getUserId();
 

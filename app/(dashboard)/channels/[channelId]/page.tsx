@@ -1,15 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { notFound } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlaySquare, CheckCircle, RefreshCw, ArrowRight } from "lucide-react";
-import Link from "next/link";
-import { VideoStatusToggle } from "@/components/video-status-toggle";
-import { VideoQuickToggle } from "@/components/video-quick-toggle";
-import { VideoTranscript } from "@/components/video-transcript";
-import { VideoTags } from "@/components/video-tags";
+import { CheckCircle, RefreshCw } from "lucide-react";
 import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
@@ -19,23 +12,36 @@ import { PendingButton } from "@/components/pending-button";
 import { ChannelCategoryManager } from "@/components/channel-category-manager";
 import { ChannelTranscriptFetch } from "@/components/channel-transcript-fetch";
 import { ChannelTagGenerate } from "@/components/channel-tag-generate";
+import { ChannelVideoList } from "@/components/channel-video-list";
+import { PageSizeSelector } from "@/components/page-size-selector";
 
-const PAGE_SIZE = 50;
+function resolvePageSize(sizeStr?: string): number {
+  const n = parseInt(sizeStr || "50", 10);
+  if (n === 200 || n === 500) return n;
+  return 50;
+}
 
 export default async function ChannelPage({
   params,
   searchParams,
 }: {
   params: Promise<{ channelId: string }>;
-  searchParams: Promise<{ page?: string; status?: string; q?: string }>;
+  searchParams: Promise<{ page?: string; status?: string; q?: string; size?: string }>;
 }) {
   const session = await auth();
   const userId = session!.user!.id!;
 
   const { channelId } = await params;
-  const { page: pageStr, status: statusFilter, q: query } = await searchParams;
+  const {
+    page: pageStr,
+    status: statusFilter,
+    q: query,
+    size: sizeStr,
+  } = await searchParams;
+
+  const pageSize = resolvePageSize(sizeStr);
   const page = Math.max(1, parseInt(pageStr || "1", 10));
-  const skip = (page - 1) * PAGE_SIZE;
+  const skip = (page - 1) * pageSize;
 
   const channel = await prisma.channel.findFirst({
     where: {
@@ -74,7 +80,7 @@ export default async function ChannelPage({
       where: baseWhere,
       orderBy: { publishedAt: "desc" },
       skip,
-      take: PAGE_SIZE,
+      take: pageSize,
       include: {
         videoTags: {
           include: { tag: true },
@@ -87,7 +93,7 @@ export default async function ChannelPage({
     }),
   ]);
 
-  const totalPages = Math.ceil(totalVideos / PAGE_SIZE);
+  const totalPages = Math.ceil(totalVideos / pageSize);
 
   const unwatchedCount = await prisma.video.count({
     where: {
@@ -139,87 +145,6 @@ export default async function ChannelPage({
 
   const markAllAsWatched = markAllChannelVideosAsWatched.bind(null, channelId);
 
-  function VideoList({ items }: { items: typeof videos }) {
-    if (items.length === 0) {
-      return (
-        <div className="text-center py-12 text-muted-foreground">
-          {query ? `No videos matching "${query}".` : "No videos found."}
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {items.map((video) => {
-            const currentStatus =
-              (video.userStates[0]?.status as VideoStatus) || "UNWATCHED";
-            return (
-              <Card key={video.id} className="overflow-hidden group">
-                <Link href={`/videos/${video.id}`} className="block aspect-video bg-muted relative group/link">
-                  {video.thumbnail ? (
-                    <>
-                      <img
-                        src={video.thumbnail}
-                        alt={video.title}
-                        className="h-full w-full object-cover transition-transform group-hover/link:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover/link:bg-black/20 transition-colors flex items-center justify-center">
-                        <ArrowRight className="h-6 w-6 text-white opacity-0 group-hover/link:opacity-100 transition-opacity" />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex h-full items-center justify-center">
-                      <PlaySquare className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div className="absolute top-2 right-2">
-                    <VideoQuickToggle
-                      videoId={video.id}
-                      currentStatus={currentStatus}
-                    />
-                  </div>
-                </Link>
-                <CardContent className="p-4 space-y-3">
-                  <div>
-                    <Link href={`/videos/${video.id}`}>
-                      <h3
-                        className="font-medium text-sm line-clamp-2 hover:text-primary transition-colors"
-                        title={video.title}
-                      >
-                        {video.title}
-                      </h3>
-                    </Link>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {video.category ? `${video.category} · ` : ""}
-                      {new Date(video.publishedAt).toLocaleDateString()}
-                      {video.durationSec ? (
-                        <span className="ml-2">
-                          {Math.floor(video.durationSec / 60)}:
-                          {String(video.durationSec % 60).padStart(2, "0")}
-                        </span>
-                      ) : null}
-                    </p>
-                  </div>
-                  <VideoStatusToggle
-                    videoId={video.id}
-                    currentStatus={currentStatus}
-                  />
-                  <VideoTags videoId={video.id} tags={video.videoTags.map((vt) => ({ id: vt.tag.id, name: vt.tag.name, score: vt.score }))} />
-                  <VideoTranscript
-                    videoId={video.id}
-                    transcript={video.transcript}
-                  />
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-        <Pagination page={page} totalPages={totalPages} basePath={`/channels/${channelId}`} />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -227,12 +152,22 @@ export default async function ChannelPage({
           <h1 className="text-3xl font-bold tracking-tight">{channel.title}</h1>
           <p className="text-muted-foreground mt-1">
             {counts.all} videos · {counts.unwatched} unwatched
-            {channel.categories.length > 0 ? ` · ${channel.categories.map((c) => c.name).join(", ")}` : ""}
+            {channel.categories.length > 0
+              ? ` · ${channel.categories.map((c) => c.name).join(", ")}`
+              : ""}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <ChannelTagGenerate channelId={channelId} videoCount={counts.all} untaggedCount={counts.untagged} />
-          <ChannelTranscriptFetch channelId={channelId} videoCount={counts.all} missingCount={counts.missingTranscripts} />
+          <ChannelTagGenerate
+            channelId={channelId}
+            videoCount={counts.all}
+            untaggedCount={counts.untagged}
+          />
+          <ChannelTranscriptFetch
+            channelId={channelId}
+            videoCount={counts.all}
+            missingCount={counts.missingTranscripts}
+          />
           <form action={syncChannelVideos.bind(null, channelId)}>
             <PendingButton variant="outline" size="sm" pendingText="Syncing...">
               <RefreshCw className="mr-2 h-4 w-4" />
@@ -262,19 +197,30 @@ export default async function ChannelPage({
       <SearchInput placeholder="Search videos by title..." />
 
       <Tabs defaultValue="all">
-        <TabsList>
-          <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
-          <TabsTrigger value="unwatched">
-            Unwatched ({counts.unwatched})
-          </TabsTrigger>
-          <TabsTrigger value="watched">Watched ({counts.watched})</TabsTrigger>
-          <TabsTrigger value="not-interested">
-            Not interested ({counts.notInterested})
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <TabsList>
+            <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
+            <TabsTrigger value="unwatched">
+              Unwatched ({counts.unwatched})
+            </TabsTrigger>
+            <TabsTrigger value="watched">Watched ({counts.watched})</TabsTrigger>
+            <TabsTrigger value="not-interested">
+              Not interested ({counts.notInterested})
+            </TabsTrigger>
+          </TabsList>
+          <PageSizeSelector />
+        </div>
+
         <TabsContent value="all" className="mt-4">
-          <VideoList items={videos} />
+          <ChannelVideoList
+            channelId={channelId}
+            videos={videos}
+            page={page}
+            totalPages={totalPages}
+            query={query}
+          />
         </TabsContent>
+
         <TabsContent value="unwatched" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideoList
@@ -283,8 +229,10 @@ export default async function ChannelPage({
             status="UNWATCHED"
             page={page}
             query={query}
+            pageSize={pageSize}
           />
         </TabsContent>
+
         <TabsContent value="watched" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideoList
@@ -293,8 +241,10 @@ export default async function ChannelPage({
             status="WATCHED"
             page={page}
             query={query}
+            pageSize={pageSize}
           />
         </TabsContent>
+
         <TabsContent value="not-interested" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideoList
@@ -303,6 +253,7 @@ export default async function ChannelPage({
             status="NOT_INTERESTED"
             page={page}
             query={query}
+            pageSize={pageSize}
           />
         </TabsContent>
       </Tabs>
@@ -316,14 +267,16 @@ async function FilteredVideoList({
   status,
   page,
   query,
+  pageSize,
 }: {
   channelId: string;
   userId: string;
   status: VideoStatus;
   page: number;
   query?: string;
+  pageSize: number;
 }) {
-  const skip = (page - 1) * PAGE_SIZE;
+  const skip = (page - 1) * pageSize;
 
   const searchWhere = query
     ? { title: { contains: query } }
@@ -352,7 +305,7 @@ async function FilteredVideoList({
       where: statusFilter,
       orderBy: { publishedAt: "desc" },
       skip,
-      take: PAGE_SIZE,
+      take: pageSize,
       include: {
         videoTags: {
           include: { tag: true },
@@ -363,7 +316,7 @@ async function FilteredVideoList({
     }),
   ]);
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const totalPages = Math.ceil(total / pageSize);
 
   if (videos.length === 0) {
     return (
@@ -374,60 +327,12 @@ async function FilteredVideoList({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {videos.map((video) => (
-          <Card key={video.id} className="overflow-hidden group">
-            <Link href={`/videos/${video.id}`} className="block aspect-video bg-muted relative group/link">
-              {video.thumbnail ? (
-                <>
-                  <img
-                    src={video.thumbnail}
-                    alt={video.title}
-                    className="h-full w-full object-cover transition-transform group-hover/link:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover/link:bg-black/20 transition-colors flex items-center justify-center">
-                    <ArrowRight className="h-6 w-6 text-white opacity-0 group-hover/link:opacity-100 transition-opacity" />
-                  </div>
-                </>
-              ) : (
-                <div className="flex h-full items-center justify-center">
-                  <PlaySquare className="h-8 w-8 text-muted-foreground" />
-                </div>
-              )}
-              <div className="absolute top-2 right-2">
-                <VideoQuickToggle videoId={video.id} currentStatus={status} />
-              </div>
-            </Link>
-            <CardContent className="p-4 space-y-3">
-              <div>
-                <Link href={`/videos/${video.id}`}>
-                  <h3 className="font-medium text-sm line-clamp-2 hover:text-primary transition-colors" title={video.title}>
-                    {video.title}
-                  </h3>
-                </Link>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {video.category ? `${video.category} · ` : ""}
-                  {new Date(video.publishedAt).toLocaleDateString()}
-                  {video.durationSec ? (
-                    <span className="ml-2">
-                      {Math.floor(video.durationSec / 60)}:
-                      {String(video.durationSec % 60).padStart(2, "0")}
-                    </span>
-                  ) : null}
-                </p>
-              </div>
-              <VideoStatusToggle videoId={video.id} currentStatus={status} />
-              <VideoTags videoId={video.id} tags={video.videoTags.map((vt) => ({ id: vt.tag.id, name: vt.tag.name, score: vt.score }))} />
-              <VideoTranscript
-                videoId={video.id}
-                transcript={video.transcript}
-              />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      <Pagination page={page} totalPages={totalPages} basePath={`/channels/${channelId}`} />
-    </div>
+    <ChannelVideoList
+      channelId={channelId}
+      videos={videos}
+      page={page}
+      totalPages={totalPages}
+      query={query}
+    />
   );
 }
