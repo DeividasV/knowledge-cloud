@@ -272,6 +272,15 @@ export async function getChannelVideosWithoutTranscript(channelId: string) {
 
 // ── Tag generation ──────────────────────────────────────────────────
 
+async function getUserTagExtractionMethod(): Promise<string> {
+  const userId = await getUserId();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tagExtractionMethod: true },
+  });
+  return user?.tagExtractionMethod || process.env.TAG_EXTRACTION_METHOD || "ollama";
+}
+
 export async function generateVideoTags(videoId: string) {
   await getUserId();
 
@@ -282,8 +291,10 @@ export async function generateVideoTags(videoId: string) {
 
   if (!video) throw new Error("Video not found");
 
+  const method = await getUserTagExtractionMethod();
+
   // LLM-powered extraction
-  const extracted = await extractVideoTags(video.title, video.transcript);
+  const extracted = await extractVideoTags(video.title, video.transcript, method);
   if (!extracted || extracted.length === 0) {
     throw new Error("Tag extraction failed. Check your extraction backend (Ollama or Gemini).");
   }
@@ -334,8 +345,10 @@ export async function generateTagsForUntagged(limit = 100) {
     return { processed: 0, tags: [] };
   }
 
+  const method = await getUserTagExtractionMethod();
+
   // LLM only — fail fast if extraction backend is not available
-  const available = await checkTagExtractionAvailable();
+  const available = await checkTagExtractionAvailable(method);
   if (!available) {
     throw new Error(
       "Tag extraction backend is not available. Check your Ollama server or Gemini API key."
@@ -344,7 +357,7 @@ export async function generateTagsForUntagged(limit = 100) {
 
   const results = [];
   for (const video of untaggedVideos) {
-    const extracted = await extractVideoTags(video.title, video.transcript);
+    const extracted = await extractVideoTags(video.title, video.transcript, method);
     if (!extracted || extracted.length === 0) continue;
 
     const tagNames = extracted;
@@ -393,8 +406,10 @@ export async function generateTagsForAll(limit = 100) {
     return { processed: 0, tags: [] };
   }
 
+  const method = await getUserTagExtractionMethod();
+
   // LLM only — fail fast if extraction backend is not available
-  const available = await checkTagExtractionAvailable();
+  const available = await checkTagExtractionAvailable(method);
   if (!available) {
     throw new Error(
       "Tag extraction backend is not available. Check your Ollama server or Gemini API key."
@@ -403,7 +418,7 @@ export async function generateTagsForAll(limit = 100) {
 
   const results = [];
   for (const video of videos) {
-    const extracted = await extractVideoTags(video.title, video.transcript);
+    const extracted = await extractVideoTags(video.title, video.transcript, method);
     if (!extracted || extracted.length === 0) continue;
 
     const tagNames = extracted;
@@ -446,8 +461,10 @@ export async function generateTagsForChannel(channelId: string) {
     return { processed: 0, generated: 0 };
   }
 
+  const method = await getUserTagExtractionMethod();
+
   // LLM only — fail fast if extraction backend is not available
-  const available = await checkTagExtractionAvailable();
+  const available = await checkTagExtractionAvailable(method);
   if (!available) {
     throw new Error(
       "Tag extraction backend is not available. Check your Ollama server or Gemini API key."
@@ -456,7 +473,7 @@ export async function generateTagsForChannel(channelId: string) {
 
   let generated = 0;
   for (const video of videos) {
-    const extracted = await extractVideoTags(video.title, video.transcript);
+    const extracted = await extractVideoTags(video.title, video.transcript, method);
     if (!extracted || extracted.length === 0) continue;
 
     const tagNames = extracted;
@@ -485,6 +502,25 @@ export async function generateTagsForChannel(channelId: string) {
   revalidatePath("/videos");
   revalidatePath("/channels/[channelId]");
   return { processed: videos.length, generated };
+}
+
+export async function getTagExtractionMethodSetting(): Promise<string> {
+  const userId = await getUserId();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tagExtractionMethod: true },
+  });
+  return user?.tagExtractionMethod || process.env.TAG_EXTRACTION_METHOD || "ollama";
+}
+
+export async function setTagExtractionMethodSetting(value: string) {
+  const userId = await getUserId();
+  const method = value === "gemini" ? "gemini" : "ollama";
+  await prisma.user.update({
+    where: { id: userId },
+    data: { tagExtractionMethod: method },
+  });
+  return method;
 }
 
 export async function getTagStats() {
@@ -602,8 +638,10 @@ export async function generateTagsBatch(videoIds: string[]) {
     select: { id: true, title: true, description: true, transcript: true },
   });
 
+  const method = await getUserTagExtractionMethod();
+
   // LLM only — fail fast if extraction backend is not available
-  const available = await checkTagExtractionAvailable();
+  const available = await checkTagExtractionAvailable(method);
   if (!available) {
     throw new Error(
       "Tag extraction backend is not available. Check your Ollama server or Gemini API key."
@@ -612,7 +650,7 @@ export async function generateTagsBatch(videoIds: string[]) {
 
   let generated = 0;
   for (const video of videos) {
-    const extracted = await extractVideoTags(video.title, video.transcript);
+    const extracted = await extractVideoTags(video.title, video.transcript, method);
     if (!extracted || extracted.length === 0) continue;
 
     const tagNames = extracted;

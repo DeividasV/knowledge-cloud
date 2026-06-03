@@ -10,26 +10,32 @@ import {
 
 export type { TagResult };
 
-const METHOD = process.env.TAG_EXTRACTION_METHOD || "ollama";
 const FALLBACK_TO_LOCAL =
   process.env.TAG_EXTRACTION_FALLBACK_TO_LOCAL === "true";
 
+function resolveMethod(method?: string): string {
+  return method || process.env.TAG_EXTRACTION_METHOD || "ollama";
+}
+
 /**
  * Unified tag extraction entry point.
- * Dispatches to Gemini or Ollama based on TAG_EXTRACTION_METHOD env var.
+ * Dispatches to Gemini or Ollama based on the `method` parameter.
+ * If no method is provided, falls back to TAG_EXTRACTION_METHOD env var, then "ollama".
+ *
  * Fallback to Ollama is ONLY enabled when TAG_EXTRACTION_FALLBACK_TO_LOCAL="true".
- * By default, the configured method is used strictly — failures do not silently switch backends.
+ * By default, the configured method is used strictly.
  */
 export async function extractVideoTags(
   title: string,
-  transcript: string | null
+  transcript: string | null,
+  method?: string
 ): Promise<TagResult[] | null> {
-  const useGemini = METHOD === "gemini";
+  const useGemini = resolveMethod(method) === "gemini";
 
   if (useGemini) {
     if (!isGeminiConfigured()) {
       console.error(
-        "TAG_EXTRACTION_METHOD=gemini but GEMINI_API_KEY is missing or invalid."
+        "Tag extraction method is gemini but GEMINI_API_KEY is missing or invalid."
       );
       if (FALLBACK_TO_LOCAL) {
         return extractTagsWithOllama(title, transcript);
@@ -51,11 +57,13 @@ export async function extractVideoTags(
 }
 
 /**
- * Quick availability check for the configured extraction method.
+ * Quick availability check for the given extraction method.
  * Used by batch operations to fail fast before starting work.
  */
-export async function checkTagExtractionAvailable(): Promise<boolean> {
-  const useGemini = METHOD === "gemini";
+export async function checkTagExtractionAvailable(
+  method?: string
+): Promise<boolean> {
+  const useGemini = resolveMethod(method) === "gemini";
 
   if (useGemini) {
     if (isGeminiConfigured()) return true;

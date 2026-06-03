@@ -5,11 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { syncSubscriptions } from "@/app/actions/sync";
 import { forceReauth } from "@/app/actions/auth";
-import { getTranscriptStats, getMaxTagsSetting, getMaxVideosSetting, getMinDurationSetting } from "@/app/actions/videos";
+import {
+  getTranscriptStats,
+  getMaxTagsSetting,
+  getMaxVideosSetting,
+  getMinDurationSetting,
+  getTagExtractionMethodSetting,
+} from "@/app/actions/videos";
 import { SyncProgressButton } from "@/components/sync-progress";
 import { TranscriptBulkFetch } from "@/components/transcript-bulk-fetch";
 import { PendingButton } from "@/components/pending-button";
 import { TagSettings } from "@/components/tag-settings";
+import { TagExtractionSettings } from "@/components/tag-extraction-settings";
 import { SyncSettings } from "@/components/sync-settings";
 import { DurationSettings } from "@/components/duration-settings";
 import { RefreshCw, AlertTriangle, KeyRound, FileText, Sparkles, CheckCircle } from "lucide-react";
@@ -42,6 +49,7 @@ export default async function SettingsPage() {
   const maxTags = await getMaxTagsSetting();
   const maxVideos = await getMaxVideosSetting();
   const minDuration = await getMinDurationSetting();
+  const tagExtractionMethod = await getTagExtractionMethodSetting();
 
   // Get IDs of videos without transcripts for bulk fetch
   const videosWithoutTranscript = await prisma.video.findMany({
@@ -188,6 +196,7 @@ export default async function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <TagExtractionSettings initialMethod={tagExtractionMethod} />
           <TagSettings initialMaxTags={maxTags} />
         </CardContent>
       </Card>
