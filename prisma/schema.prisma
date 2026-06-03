@@ -50,6 +50,8 @@ model User {
   minVideoDurationSec    Int         @default(300)
   tagExtractionMethod    String      @default("ollama")
   tagBatchMode           String      @default("untagged")
+  geminiModel            String      @default("gemini-2.5-flash")
+  ollamaMaxChunks        Int         @default(5)
   createdAt              DateTime    @default(now())
 }
 

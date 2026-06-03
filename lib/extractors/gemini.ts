@@ -7,7 +7,7 @@ import {
 } from "./shared";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 const TAG_SCHEMA = {
@@ -89,14 +89,16 @@ interface GeminiResponse {
 export async function extractTagsWithGemini(
   title: string,
   transcript: string | null,
-  extractLimit = 15
+  extractLimit = 15,
+  model?: string
 ): Promise<TagResult[] | null> {
   if (!GEMINI_API_KEY) {
     console.error("[Gemini] No API key configured");
     return null;
   }
 
-  const url = `${GEMINI_API_URL}/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+  const resolvedModel = model || DEFAULT_GEMINI_MODEL;
+  const url = `${GEMINI_API_URL}/models/${resolvedModel}:generateContent?key=${GEMINI_API_KEY}`;
   const prompt = buildPrompt(title, transcript, extractLimit);
 
   const body = {

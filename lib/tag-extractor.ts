@@ -66,7 +66,6 @@ function mergeChunkResults(allResults: TagResult[][]): TagResult[] {
   const merged: TagResult[] = [];
   for (const [name, scores] of scoreMap) {
     const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-    // Boost score slightly when a tag appears in multiple chunks
     const boost = Math.min(0.03 * (scores.length - 1), 0.12);
     merged.push({ name, score: Math.min(1, avg + boost) });
   }
@@ -79,14 +78,15 @@ function mergeChunkResults(allResults: TagResult[][]): TagResult[] {
 async function extractSingle(
   title: string,
   transcript: string | null,
-  method: string
+  method: string,
+  geminiModel?: string
 ): Promise<TagResult[] | null> {
   if (method === "gemini") {
     if (!isGeminiConfigured()) {
       console.error("[extractVideoTags] Gemini selected but API key missing/invalid");
       return null;
     }
-    return extractTagsWithGemini(title, transcript, 15);
+    return extractTagsWithGemini(title, transcript, 15, geminiModel);
   }
   return extractTagsWithOllama(title, transcript, 15);
 }
@@ -100,24 +100,29 @@ async function extractSingle(
 export async function extractVideoTags(
   title: string,
   transcript: string | null,
-  method?: string
+  method?: string,
+  geminiModel?: string,
+  ollamaMaxChunks?: number
 ): Promise<TagResult[] | null> {
   const resolved = resolveMethod(method);
   console.log(`[extractVideoTags] method=${resolved}, title="${title.slice(0, 60)}..."`);
 
-  // No transcript — single-pass extraction
   if (!transcript || transcript.length === 0) {
-    return extractSingle(title, null, resolved);
+    return extractSingle(title, null, resolved, geminiModel);
   }
 
-  const cfg = CHUNK_CONFIGS[resolved] ?? CHUNK_CONFIGS.ollama;
+  const baseCfg = CHUNK_CONFIGS[resolved] ?? CHUNK_CONFIGS.ollama;
+  const cfg: ChunkConfig = {
+    ...baseCfg,
+    maxChunks: resolved === "ollama" && ollamaMaxChunks != null
+      ? Math.max(1, Math.min(50, ollamaMaxChunks))
+      : baseCfg.maxChunks,
+  };
 
-  // Short transcript — single pass
   if (transcript.length <= cfg.size) {
-    return extractSingle(title, transcript, resolved);
+    return extractSingle(title, transcript, resolved, geminiModel);
   }
 
-  // Long transcript — chunk and merge
   const chunks = createChunks(transcript, cfg);
   const willProcess = Math.min(chunks.length, cfg.maxChunks);
   const skipped = chunks.length - willProcess;
@@ -134,7 +139,7 @@ export async function extractVideoTags(
   const allResults: TagResult[][] = [];
   for (let i = 0; i < willProcess; i++) {
     const chunkTitle = `${title} [part ${i + 1}/${willProcess}]`;
-    const result = await extractSingle(chunkTitle, chunks[i], resolved);
+    const result = await extractSingle(chunkTitle, chunks[i], resolved, geminiModel);
     if (result && result.length > 0) {
       allResults.push(result);
       console.log(`[extractVideoTags] Chunk ${i + 1}/${willProcess}: ${result.length} tags`);
