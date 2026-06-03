@@ -32,8 +32,12 @@ export function deduplicateTags(tags: TagResult[]): TagResult[] {
 
   for (const tag of tags) {
     const normalized = tag.name.toLowerCase().trim();
+    // Exact duplicate
+    if (seen.has(normalized)) continue;
+
+    // Substring duplicate (e.g. "ai" vs "artificial intelligence")
     const isDuplicate = Array.from(seen).some(
-      (s) => s !== normalized && (s.includes(normalized) || normalized.includes(s))
+      (s) => s.includes(normalized) || normalized.includes(s)
     );
     if (!isDuplicate) {
       result.push(tag);
