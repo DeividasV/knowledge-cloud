@@ -49,6 +49,7 @@ model User {
   maxVideosPerChannelSync Int        @default(500)
   minVideoDurationSec    Int         @default(300)
   tagExtractionMethod    String      @default("ollama")
+  tagBatchMode           String      @default("untagged")
   createdAt              DateTime    @default(now())
 }
 

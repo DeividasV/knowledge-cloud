@@ -529,6 +529,25 @@ export async function setTagExtractionMethodSetting(value: string) {
   return method;
 }
 
+export async function getTagBatchModeSetting(): Promise<string> {
+  const userId = await getUserId();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tagBatchMode: true },
+  });
+  return user?.tagBatchMode ?? "untagged";
+}
+
+export async function setTagBatchModeSetting(value: string) {
+  const userId = await getUserId();
+  const mode = value === "all" ? "all" : "untagged";
+  await prisma.user.update({
+    where: { id: userId },
+    data: { tagBatchMode: mode },
+  });
+  return mode;
+}
+
 export async function getTagStats() {
   await getUserId();
 

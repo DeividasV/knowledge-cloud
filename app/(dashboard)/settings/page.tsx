@@ -11,6 +11,7 @@ import {
   getMaxVideosSetting,
   getMinDurationSetting,
   getTagExtractionMethodSetting,
+  getTagBatchModeSetting,
 } from "@/app/actions/videos";
 import { SyncProgressButton } from "@/components/sync-progress";
 import { TranscriptBulkFetch } from "@/components/transcript-bulk-fetch";
@@ -50,6 +51,7 @@ export default async function SettingsPage() {
   const maxVideos = await getMaxVideosSetting();
   const minDuration = await getMinDurationSetting();
   const tagExtractionMethod = await getTagExtractionMethodSetting();
+  const tagBatchMode = await getTagBatchModeSetting();
 
   // Get IDs of videos without transcripts for bulk fetch
   const videosWithoutTranscript = await prisma.video.findMany({
@@ -197,7 +199,7 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <TagExtractionSettings initialMethod={tagExtractionMethod} />
-          <TagSettings initialMaxTags={maxTags} />
+          <TagSettings initialMaxTags={maxTags} initialBatchMode={tagBatchMode} />
         </CardContent>
       </Card>
 

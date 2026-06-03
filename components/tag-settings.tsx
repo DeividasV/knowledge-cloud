@@ -8,7 +8,13 @@ import { Loader2, Settings2 } from "lucide-react";
 
 const TAG_OPTIONS = [3, 5, 8, 10, 15, 20, 30, 50];
 
-export function TagSettings({ initialMaxTags }: { initialMaxTags: number }) {
+export function TagSettings({
+  initialMaxTags,
+  initialBatchMode,
+}: {
+  initialMaxTags: number;
+  initialBatchMode: string;
+}) {
   const [maxTags, setMaxTags] = useState(String(initialMaxTags));
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
@@ -82,7 +88,7 @@ export function TagSettings({ initialMaxTags }: { initialMaxTags: number }) {
         </div>
       </div>
 
-      <TagBulkGenerate />
+      <TagBulkGenerate initialMode={initialBatchMode} />
     </div>
   );
 }
