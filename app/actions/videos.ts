@@ -548,6 +548,130 @@ export async function setTagBatchModeSetting(value: string) {
   return mode;
 }
 
+export interface TagWatchStats {
+  name: string;
+  avgScore: number;
+  watched: number;
+  unwatched: number;
+}
+
+export async function getTopTagsWithWatchStats(limit = 10): Promise<{
+  totalTags: number;
+  topTags: TagWatchStats[];
+}> {
+  const userId = await getUserId();
+
+  const totalTags = await prisma.tag.count();
+
+  const videoTags = await prisma.videoTag.findMany({
+    where: {
+      video: {
+        channel: { users: { some: { id: userId } } },
+      },
+    },
+    select: {
+      score: true,
+      tag: { select: { id: true, name: true } },
+      video: {
+        select: {
+          userStates: {
+            where: { userId },
+            select: { status: true },
+          },
+        },
+      },
+    },
+  });
+
+  const map = new Map<
+    string,
+    { name: string; scores: number[]; watched: number; unwatched: number }
+  >();
+
+  for (const vt of videoTags) {
+    const status = vt.video.userStates[0]?.status ?? "UNWATCHED";
+    const isWatched = status === "WATCHED";
+    const isUnwatched = status === "UNWATCHED" || status === "WATCHING";
+
+    const existing = map.get(vt.tag.id);
+    if (existing) {
+      existing.scores.push(vt.score);
+      if (isWatched) existing.watched++;
+      if (isUnwatched) existing.unwatched++;
+    } else {
+      map.set(vt.tag.id, {
+        name: vt.tag.name,
+        scores: [vt.score],
+        watched: isWatched ? 1 : 0,
+        unwatched: isUnwatched ? 1 : 0,
+      });
+    }
+  }
+
+  const topTags: TagWatchStats[] = Array.from(map.values())
+    .map((t) => ({
+      name: t.name,
+      avgScore: t.scores.reduce((a, b) => a + b, 0) / t.scores.length,
+      watched: t.watched,
+      unwatched: t.unwatched,
+    }))
+    .sort((a, b) => b.avgScore - a.avgScore)
+    .slice(0, limit);
+
+  return { totalTags, topTags };
+}
+
+export interface CategoryDashboardStat {
+  name: string;
+  totalVideos: number;
+  watched: number;
+  unwatched: number;
+}
+
+export async function getCategoryDashboardStats(): Promise<CategoryDashboardStat[]> {
+  const userId = await getUserId();
+
+  const categories = await prisma.category.findMany({
+    where: {
+      channels: { some: { users: { some: { id: userId } } } },
+    },
+    include: {
+      channels: {
+        where: { users: { some: { id: userId } } },
+        include: {
+          videos: {
+            include: {
+              userStates: {
+                where: { userId },
+                select: { status: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const stats: CategoryDashboardStat[] = categories.map((cat) => {
+    let totalVideos = 0;
+    let watched = 0;
+    let unwatched = 0;
+
+    for (const channel of cat.channels) {
+      for (const video of channel.videos) {
+        totalVideos++;
+        const status = video.userStates[0]?.status ?? "UNWATCHED";
+        if (status === "WATCHED") watched++;
+        else if (status === "UNWATCHED" || status === "WATCHING") unwatched++;
+      }
+    }
+
+    return { name: cat.name, totalVideos, watched, unwatched };
+  });
+
+  return stats.sort((a, b) => b.totalVideos - a.totalVideos);
+}
+
 export async function getTagStats() {
   await getUserId();
 
