@@ -109,20 +109,20 @@ function selectTagsByScore(tags: TagResult[]): TagResult[] {
   let cutIdx = sorted.length;
   for (let i = sorted.length - 1; i >= 1; i--) {
     const gap = sorted[i - 1].score - sorted[i].score;
-    if (gap >= 0.06) {
+    if (gap >= 0.04) {
       cutIdx = i;
       break;
     }
   }
 
   if (cutIdx < sorted.length) {
-    return sorted.slice(0, Math.max(4, cutIdx));
+    return sorted.slice(0, Math.max(6, cutIdx));
   }
 
-  const selected = sorted.filter((t) => t.score >= 0.65);
+  const selected = sorted.filter((t) => t.score >= 0.55);
 
-  if (selected.length < 2 && sorted.length >= 2) {
-    return sorted.slice(0, 2);
+  if (selected.length < 3 && sorted.length >= 3) {
+    return sorted.slice(0, 3);
   }
 
   return selected;

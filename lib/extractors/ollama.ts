@@ -223,29 +223,29 @@ function selectTagsByScore(tags: TagResult[]): TagResult[] {
   // Sort by score descending (best first)
   const sorted = [...tags].sort((a, b) => b.score - a.score);
 
-  // Pass 1: find the latest-occurring meaningful gap (>= 0.06).
+  // Pass 1: find the latest-occurring meaningful gap (>= 0.04).
   // Scanning from the end keeps more tags while still cutting at a quality drop.
   let cutIdx = sorted.length;
   for (let i = sorted.length - 1; i >= 1; i--) {
     const gap = sorted[i - 1].score - sorted[i].score;
-    if (gap >= 0.06) {
+    if (gap >= 0.04) {
       cutIdx = i;
       break;
     }
   }
 
   if (cutIdx < sorted.length) {
-    // Keep at least 4 tags if a gap is found, but respect the cut
-    return sorted.slice(0, Math.max(4, cutIdx));
+    // Keep at least 6 tags if a gap is found, but respect the cut
+    return sorted.slice(0, Math.max(6, cutIdx));
   }
 
   // Pass 2: no natural gap found (evenly-spaced scores).
-  // Use an absolute quality band: keep tags with score >= 0.65.
-  const selected = sorted.filter((t) => t.score >= 0.65);
+  // Use an absolute quality band: keep tags with score >= 0.55.
+  const selected = sorted.filter((t) => t.score >= 0.55);
 
-  // Ensure at least 2 tags if available
-  if (selected.length < 2 && sorted.length >= 2) {
-    return sorted.slice(0, 2);
+  // Ensure at least 3 tags if available
+  if (selected.length < 3 && sorted.length >= 3) {
+    return sorted.slice(0, 3);
   }
 
   return selected;

@@ -12,13 +12,13 @@ export type { TagResult };
 
 const METHOD = process.env.TAG_EXTRACTION_METHOD || "ollama";
 const FALLBACK_TO_LOCAL =
-  process.env.TAG_EXTRACTION_FALLBACK_TO_LOCAL !== "false";
+  process.env.TAG_EXTRACTION_FALLBACK_TO_LOCAL === "true";
 
 /**
  * Unified tag extraction entry point.
  * Dispatches to Gemini or Ollama based on TAG_EXTRACTION_METHOD env var.
- * If Gemini is chosen but fails (or is unconfigured), optionally falls back
- * to Ollama when TAG_EXTRACTION_FALLBACK_TO_LOCAL is not "false".
+ * Fallback to Ollama is ONLY enabled when TAG_EXTRACTION_FALLBACK_TO_LOCAL="true".
+ * By default, the configured method is used strictly — failures do not silently switch backends.
  */
 export async function extractVideoTags(
   title: string,
@@ -26,7 +26,17 @@ export async function extractVideoTags(
 ): Promise<TagResult[] | null> {
   const useGemini = METHOD === "gemini";
 
-  if (useGemini && isGeminiConfigured()) {
+  if (useGemini) {
+    if (!isGeminiConfigured()) {
+      console.error(
+        "TAG_EXTRACTION_METHOD=gemini but GEMINI_API_KEY is missing or invalid."
+      );
+      if (FALLBACK_TO_LOCAL) {
+        return extractTagsWithOllama(title, transcript);
+      }
+      return null;
+    }
+
     const result = await extractTagsWithGemini(title, transcript);
     if (result && result.length > 0) return result;
 
