@@ -170,7 +170,7 @@ export async function extractTagsWithGemini(
 
       const rawText = candidate?.content?.parts?.[0]?.text;
       if (!rawText) {
-        console.error("[Gemini] No text in response. Candidate:", JSON.stringify(candidate).slice(0, 500));
+        console.error("[Gemini] No text in response. Candidate:", (JSON.stringify(candidate) ?? "undefined").slice(0, 500));
         return null;
       }
 
