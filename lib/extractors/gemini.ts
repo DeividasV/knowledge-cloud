@@ -28,8 +28,19 @@ const TAG_SCHEMA = {
   required: ["tags"],
 } as const;
 
-function buildPrompt(title: string, transcript: string | null, extractLimit: number): string {
+function getLanguageInstruction(language: string): string {
+  switch (language) {
+    case "lt":
+      return "Output tags in Lithuanian only. Even if the video is in another language, translate concepts to their standard Lithuanian terms. All tags must be in Lithuanian.";
+    case "en":
+    default:
+      return "Output tags in English only. Even if the video is in another language, translate concepts to their standard English terms.";
+  }
+}
+
+function buildPrompt(title: string, transcript: string | null, extractLimit: number, language: string): string {
   const context = buildPromptContext(title, transcript);
+  const langInstruction = getLanguageInstruction(language);
 
   return `You are a topic tag extractor. Given a video title and transcript, produce up to ${extractLimit} tags that name the central topics, concepts, people, technologies, or domains discussed.
 
@@ -39,7 +50,7 @@ RULES:
 3. SPECIFIC OVER GENERIC: "neural networks" > "technology"; "quantum entanglement" > "science"; "D-Day landings" > "history".
 4. MULTI-WORD: Use multi-word tags for any concept that needs more than one word. Tags MUST have spaces between words. NEVER concatenate or hyphenate: "machine learning" not "machinelearning" or "machine-learning".
 5. NORMALIZE: All tags lowercase, trimmed. One canonical form per concept — no near-duplicates like "ai" and "artificial intelligence" in the same list; pick the clearest.
-6. LANGUAGE: Output tags in English only. Even if the video is in another language, translate concepts to their standard English terms.
+6. LANGUAGE: ${langInstruction}
 7. NO PROHIBITED ITEMS: No generic phrases ("in this video", "let's talk"), no sentence fragments, no timestamps, no numbers as standalone tags, no emotional reactions ("amazing", "shocking"), no speaker names unless they are the subject.
 8. SCORING: Assign each tag a relevance score from 0.00 to 1.00. Be BRUTALLY honest — do NOT space scores evenly:
    - 0.90-1.00 = central theme, what the video is primarily about (1-3 tags max)
@@ -90,7 +101,8 @@ export async function extractTagsWithGemini(
   title: string,
   transcript: string | null,
   extractLimit = 15,
-  model?: string
+  model?: string,
+  language = "en"
 ): Promise<TagResult[] | null> {
   if (!GEMINI_API_KEY) {
     console.error("[Gemini] No API key configured");
@@ -99,7 +111,7 @@ export async function extractTagsWithGemini(
 
   const resolvedModel = model || DEFAULT_GEMINI_MODEL;
   const url = `${GEMINI_API_URL}/models/${resolvedModel}:generateContent?key=${GEMINI_API_KEY}`;
-  const prompt = buildPrompt(title, transcript, extractLimit);
+  const prompt = buildPrompt(title, transcript, extractLimit, language);
 
   const body = {
     contents: [

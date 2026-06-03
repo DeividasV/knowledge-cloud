@@ -276,6 +276,7 @@ async function getUserTagExtractionConfig(): Promise<{
   method: string;
   geminiModel: string;
   ollamaMaxChunks: number;
+  tagLanguage: string;
 }> {
   const userId = await getUserId();
   const user = await prisma.user.findUnique({
@@ -284,12 +285,14 @@ async function getUserTagExtractionConfig(): Promise<{
       tagExtractionMethod: true,
       geminiModel: true,
       ollamaMaxChunks: true,
+      tagLanguage: true,
     },
   });
   return {
     method: user?.tagExtractionMethod || process.env.TAG_EXTRACTION_METHOD || "ollama",
     geminiModel: user?.geminiModel || process.env.GEMINI_MODEL || "gemini-2.5-flash",
     ollamaMaxChunks: user?.ollamaMaxChunks ?? 5,
+    tagLanguage: user?.tagLanguage ?? "en",
   };
 }
 
@@ -303,10 +306,10 @@ export async function generateVideoTags(videoId: string) {
 
   if (!video) throw new Error("Video not found");
 
-  const { method, geminiModel, ollamaMaxChunks } = await getUserTagExtractionConfig();
+  const { method, geminiModel, ollamaMaxChunks, tagLanguage } = await getUserTagExtractionConfig();
 
   // LLM-powered extraction
-  const extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks);
+  const extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks, tagLanguage);
   if (!extracted || extracted.length === 0) {
     const backend = method === "gemini" ? "Gemini" : "Ollama";
     throw new Error(
@@ -363,7 +366,7 @@ export async function generateTagsForUntagged(limit = 100) {
     return { processed: 0, tags: [] };
   }
 
-  const { method, geminiModel, ollamaMaxChunks } = await getUserTagExtractionConfig();
+  const { method, geminiModel, ollamaMaxChunks, tagLanguage } = await getUserTagExtractionConfig();
 
   // LLM only — fail fast if extraction backend is not available
   const available = await checkTagExtractionAvailable(method);
@@ -375,7 +378,7 @@ export async function generateTagsForUntagged(limit = 100) {
 
   const results = [];
   for (const video of untaggedVideos) {
-    const extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks);
+    const extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks, tagLanguage);
     if (!extracted || extracted.length === 0) continue;
 
     const tagNames = extracted;
@@ -424,7 +427,7 @@ export async function generateTagsForAll(limit = 100) {
     return { processed: 0, tags: [] };
   }
 
-  const { method, geminiModel, ollamaMaxChunks } = await getUserTagExtractionConfig();
+  const { method, geminiModel, ollamaMaxChunks, tagLanguage } = await getUserTagExtractionConfig();
 
   // LLM only — fail fast if extraction backend is not available
   const available = await checkTagExtractionAvailable(method);
@@ -436,7 +439,7 @@ export async function generateTagsForAll(limit = 100) {
 
   const results = [];
   for (const video of videos) {
-    const extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks);
+    const extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks, tagLanguage);
     if (!extracted || extracted.length === 0) continue;
 
     const tagNames = extracted;
@@ -479,7 +482,7 @@ export async function generateTagsForChannel(channelId: string) {
     return { processed: 0, generated: 0 };
   }
 
-  const { method, geminiModel, ollamaMaxChunks } = await getUserTagExtractionConfig();
+  const { method, geminiModel, ollamaMaxChunks, tagLanguage } = await getUserTagExtractionConfig();
 
   // LLM only — fail fast if extraction backend is not available
   const available = await checkTagExtractionAvailable(method);
@@ -491,7 +494,7 @@ export async function generateTagsForChannel(channelId: string) {
 
   let generated = 0;
   for (const video of videos) {
-    const extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks);
+    const extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks, tagLanguage);
     if (!extracted || extracted.length === 0) continue;
 
     const tagNames = extracted;
@@ -577,6 +580,25 @@ export async function setOllamaMaxChunksSetting(value: number) {
     data: { ollamaMaxChunks: maxChunks },
   });
   return maxChunks;
+}
+
+export async function getTagLanguageSetting(): Promise<string> {
+  const userId = await getUserId();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tagLanguage: true },
+  });
+  return user?.tagLanguage ?? "en";
+}
+
+export async function setTagLanguageSetting(value: string) {
+  const userId = await getUserId();
+  const lang = value === "lt" ? "lt" : "en";
+  await prisma.user.update({
+    where: { id: userId },
+    data: { tagLanguage: lang },
+  });
+  return lang;
 }
 
 export async function getTagBatchModeSetting(): Promise<string> {
@@ -902,7 +924,7 @@ export async function generateTagsBatch(videoIds: string[]) {
     select: { id: true, title: true, description: true, transcript: true },
   });
 
-  const { method, geminiModel, ollamaMaxChunks } = await getUserTagExtractionConfig();
+  const { method, geminiModel, ollamaMaxChunks, tagLanguage } = await getUserTagExtractionConfig();
 
   // LLM only — fail fast if extraction backend is not available
   const available = await checkTagExtractionAvailable(method);
@@ -914,7 +936,7 @@ export async function generateTagsBatch(videoIds: string[]) {
 
   let generated = 0;
   for (const video of videos) {
-    const extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks);
+    const extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks, tagLanguage);
     if (!extracted || extracted.length === 0) continue;
 
     const tagNames = extracted;

@@ -79,16 +79,17 @@ async function extractSingle(
   title: string,
   transcript: string | null,
   method: string,
-  geminiModel?: string
+  geminiModel?: string,
+  language?: string
 ): Promise<TagResult[] | null> {
   if (method === "gemini") {
     if (!isGeminiConfigured()) {
       console.error("[extractVideoTags] Gemini selected but API key missing/invalid");
       return null;
     }
-    return extractTagsWithGemini(title, transcript, 15, geminiModel);
+    return extractTagsWithGemini(title, transcript, 15, geminiModel, language);
   }
-  return extractTagsWithOllama(title, transcript, 15);
+  return extractTagsWithOllama(title, transcript, 15, language);
 }
 
 /**
@@ -102,13 +103,14 @@ export async function extractVideoTags(
   transcript: string | null,
   method?: string,
   geminiModel?: string,
-  ollamaMaxChunks?: number
+  ollamaMaxChunks?: number,
+  language?: string
 ): Promise<TagResult[] | null> {
   const resolved = resolveMethod(method);
   console.log(`[extractVideoTags] method=${resolved}, title="${title.slice(0, 60)}..."`);
 
   if (!transcript || transcript.length === 0) {
-    return extractSingle(title, null, resolved, geminiModel);
+    return extractSingle(title, null, resolved, geminiModel, language);
   }
 
   const baseCfg = CHUNK_CONFIGS[resolved] ?? CHUNK_CONFIGS.ollama;
@@ -120,7 +122,7 @@ export async function extractVideoTags(
   };
 
   if (transcript.length <= cfg.size) {
-    return extractSingle(title, transcript, resolved, geminiModel);
+    return extractSingle(title, transcript, resolved, geminiModel, language);
   }
 
   const chunks = createChunks(transcript, cfg);
@@ -139,7 +141,7 @@ export async function extractVideoTags(
   const allResults: TagResult[][] = [];
   for (let i = 0; i < willProcess; i++) {
     const chunkTitle = `${title} [part ${i + 1}/${willProcess}]`;
-    const result = await extractSingle(chunkTitle, chunks[i], resolved, geminiModel);
+    const result = await extractSingle(chunkTitle, chunks[i], resolved, geminiModel, language);
     if (result && result.length > 0) {
       allResults.push(result);
       console.log(`[extractVideoTags] Chunk ${i + 1}/${willProcess}: ${result.length} tags`);
