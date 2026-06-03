@@ -550,9 +550,54 @@ export async function setTagBatchModeSetting(value: string) {
 
 export interface TagWatchStats {
   name: string;
-  avgScore: number;
-  watched: number;
-  unwatched: number;
+  totalScore: number;
+  watchedScore: number;
+  remainingScore: number;
+  watchedCount: number;
+  totalCount: number;
+}
+
+export async function getTagScoreSummary(): Promise<{
+  totalScore: number;
+  watchedScore: number;
+  remainingScore: number;
+}> {
+  const userId = await getUserId();
+
+  const videoTags = await prisma.videoTag.findMany({
+    where: {
+      video: {
+        channel: { users: { some: { id: userId } } },
+      },
+    },
+    select: {
+      score: true,
+      video: {
+        select: {
+          userStates: {
+            where: { userId },
+            select: { status: true },
+          },
+        },
+      },
+    },
+  });
+
+  let totalScore = 0;
+  let watchedScore = 0;
+  let remainingScore = 0;
+
+  for (const vt of videoTags) {
+    const status = vt.video.userStates[0]?.status ?? "UNWATCHED";
+    totalScore += vt.score;
+    if (status === "WATCHED") {
+      watchedScore += vt.score;
+    } else {
+      remainingScore += vt.score;
+    }
+  }
+
+  return { totalScore, watchedScore, remainingScore };
 }
 
 export async function getTopTagsWithWatchStats(limit = 10): Promise<{
@@ -585,37 +630,44 @@ export async function getTopTagsWithWatchStats(limit = 10): Promise<{
 
   const map = new Map<
     string,
-    { name: string; scores: number[]; watched: number; unwatched: number }
+    {
+      name: string;
+      totalScore: number;
+      watchedScore: number;
+      remainingScore: number;
+      watchedCount: number;
+      totalCount: number;
+    }
   >();
 
   for (const vt of videoTags) {
     const status = vt.video.userStates[0]?.status ?? "UNWATCHED";
     const isWatched = status === "WATCHED";
-    const isUnwatched = status === "UNWATCHED" || status === "WATCHING";
 
     const existing = map.get(vt.tag.id);
     if (existing) {
-      existing.scores.push(vt.score);
-      if (isWatched) existing.watched++;
-      if (isUnwatched) existing.unwatched++;
+      existing.totalScore += vt.score;
+      existing.totalCount++;
+      if (isWatched) {
+        existing.watchedScore += vt.score;
+        existing.watchedCount++;
+      } else {
+        existing.remainingScore += vt.score;
+      }
     } else {
       map.set(vt.tag.id, {
         name: vt.tag.name,
-        scores: [vt.score],
-        watched: isWatched ? 1 : 0,
-        unwatched: isUnwatched ? 1 : 0,
+        totalScore: vt.score,
+        watchedScore: isWatched ? vt.score : 0,
+        remainingScore: isWatched ? 0 : vt.score,
+        watchedCount: isWatched ? 1 : 0,
+        totalCount: 1,
       });
     }
   }
 
   const topTags: TagWatchStats[] = Array.from(map.values())
-    .map((t) => ({
-      name: t.name,
-      avgScore: t.scores.reduce((a, b) => a + b, 0) / t.scores.length,
-      watched: t.watched,
-      unwatched: t.unwatched,
-    }))
-    .sort((a, b) => b.avgScore - a.avgScore)
+    .sort((a, b) => b.totalScore - a.totalScore)
     .slice(0, limit);
 
   return { totalTags, topTags };
