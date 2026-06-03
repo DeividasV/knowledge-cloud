@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { generateVideoTags } from "@/app/actions/videos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Loader2 } from "lucide-react";
+import { RefreshCw, Loader2, Hash } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TagItem {
@@ -33,9 +33,11 @@ function getScoreLabel(score: number, maxScore: number): string {
 export function TagReportClient({
   videoId,
   tags,
+  tagCounts,
 }: {
   videoId: string;
   tags: TagItem[];
+  tagCounts?: Record<string, number>;
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -93,6 +95,16 @@ export function TagReportClient({
                     {tag.name}
                   </span>
                   <div className="flex items-center gap-2 shrink-0">
+                    {tagCounts && tagCounts[tag.id] !== undefined && (
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] px-1.5 py-0 font-normal inline-flex items-center gap-0.5"
+                        title={`${tagCounts[tag.id]} other video${tagCounts[tag.id] === 1 ? "" : "s"} with this tag`}
+                      >
+                        <Hash className="h-2.5 w-2.5" />
+                        {tagCounts[tag.id]}
+                      </Badge>
+                    )}
                     <Badge
                       variant="outline"
                       className="text-[10px] px-1.5 py-0 font-normal"

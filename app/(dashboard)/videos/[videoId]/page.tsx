@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft,
   ExternalLink,
@@ -18,10 +17,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
-import { VideoTranscript } from "@/components/video-transcript";
 import { VideoStatus } from "@/lib/types";
 import { generateVideoTags } from "@/app/actions/videos";
 import { TagReportClient } from "@/components/tag-report-client";
+import { VideoTranscriptStatic } from "@/components/video-transcript-static";
 
 interface PageProps {
   params: Promise<{ videoId: string }>;
@@ -76,6 +75,28 @@ export default async function VideoDetailPage({ params }: PageProps) {
     name: vt.tag.name,
     score: vt.score,
   }));
+
+  // Count other videos with same tag (from user's subscribed channels)
+  const tagIds = tags.map((t) => t.id);
+  const tagCountRows =
+    tagIds.length > 0
+      ? await prisma.videoTag.groupBy({
+          by: ["tagId"],
+          where: {
+            tagId: { in: tagIds },
+            videoId: { not: videoId },
+            video: {
+              channel: { users: { some: { id: userId } } },
+            },
+          },
+          _count: { videoId: true },
+        })
+      : [];
+
+  const tagCounts = new Map<string, number>();
+  for (const row of tagCountRows) {
+    tagCounts.set(row.tagId, row._count.videoId);
+  }
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -195,7 +216,11 @@ export default async function VideoDetailPage({ params }: PageProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <TagReportClient videoId={videoId} tags={tags} />
+            <TagReportClient
+              videoId={videoId}
+              tags={tags}
+              tagCounts={Object.fromEntries(tagCounts)}
+            />
           </CardContent>
         </Card>
       )}
@@ -209,7 +234,7 @@ export default async function VideoDetailPage({ params }: PageProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <VideoTranscript
+          <VideoTranscriptStatic
             videoId={video.id}
             transcript={video.transcript}
           />
