@@ -75,6 +75,11 @@ export function VideoTags({
           className="text-[10px] px-1.5 py-0 font-normal bg-secondary/30"
         >
           {tag.name}
+          {expanded && (
+            <span className="text-muted-foreground ml-1 tabular-nums">
+              {tag.score.toFixed(2)}
+            </span>
+          )}
         </Badge>
       ))}
 
