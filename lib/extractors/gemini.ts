@@ -1,4 +1,10 @@
-import type { TagResult } from "./ollama";
+import {
+  type TagResult,
+  cleanTag,
+  isGenericFiller,
+  deduplicateTags,
+  selectTagsByScore,
+} from "./shared";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -52,80 +58,18 @@ function buildPromptContext(title: string, transcript: string | null): string {
   parts.push(`Title: ${title}`);
 
   if (transcript && transcript.length > 0) {
-    const truncated =
-      transcript.length > 3000 ? transcript.slice(0, 3000) + "..." : transcript;
-    parts.push(`Transcript: ${truncated}`);
+    // Sample from beginning (intro) and end (conclusion) for best topic coverage.
+    const maxLen = 1500;
+    if (transcript.length <= maxLen) {
+      parts.push(`Transcript: ${transcript}`);
+    } else {
+      const head = transcript.slice(0, Math.floor(maxLen * 0.7));
+      const tail = transcript.slice(-Math.floor(maxLen * 0.3));
+      parts.push(`Transcript:\n${head}\n... [middle skipped] ...\n${tail}`);
+    }
   }
 
   return parts.join("\n");
-}
-
-function cleanTag(tag: string): string {
-  return tag
-    .toLowerCase()
-    .replace(/^["']|["']$/g, "")
-    .replace(/[\[\]()]/g, "")
-    .trim()
-    .replace(/-/g, " ");
-}
-
-function isGenericFiller(tag: string): boolean {
-  const fillers = new Set([
-    "video", "youtube", "channel", "today", "talk", "discuss", "look",
-    "going", "want", "think", "know", "really", "actually", "basically",
-    "literally", "obviously", "amazing", "shocking", "incredible", "awesome",
-    "this video", "in this", "we are", "let us", "going to", "talk about",
-    "hello everyone", "thanks for", "dont forget", "make sure", "in conclusion",
-    "сегодня", "видео", "канал", "ролик", "смотрим", "говорим", "обсудим",
-    "давайте", "сейчас", "начнем", "поговорим", "расскажу", "спасибо",
-    "всем привет", "не забудьте", "обязательно", "в заключение",
-  ]);
-  return fillers.has(tag.toLowerCase());
-}
-
-function deduplicateTags(tags: TagResult[]): TagResult[] {
-  const seen = new Set<string>();
-  const result: TagResult[] = [];
-
-  for (const tag of tags) {
-    const normalized = tag.name.toLowerCase().trim();
-    const isDuplicate = Array.from(seen).some(
-      (s) => s !== normalized && (s.includes(normalized) || normalized.includes(s))
-    );
-    if (!isDuplicate) {
-      result.push(tag);
-      seen.add(normalized);
-    }
-  }
-
-  return result;
-}
-
-function selectTagsByScore(tags: TagResult[]): TagResult[] {
-  if (tags.length <= 2) return tags;
-
-  const sorted = [...tags].sort((a, b) => b.score - a.score);
-
-  let cutIdx = sorted.length;
-  for (let i = sorted.length - 1; i >= 1; i--) {
-    const gap = sorted[i - 1].score - sorted[i].score;
-    if (gap >= 0.04) {
-      cutIdx = i;
-      break;
-    }
-  }
-
-  if (cutIdx < sorted.length) {
-    return sorted.slice(0, Math.max(6, cutIdx));
-  }
-
-  const selected = sorted.filter((t) => t.score >= 0.55);
-
-  if (selected.length < 3 && sorted.length >= 3) {
-    return sorted.slice(0, 3);
-  }
-
-  return selected;
 }
 
 async function sleep(ms: number) {
@@ -155,7 +99,10 @@ export async function extractTagsWithGemini(
   transcript: string | null,
   extractLimit = 15
 ): Promise<TagResult[] | null> {
-  if (!GEMINI_API_KEY) return null;
+  if (!GEMINI_API_KEY) {
+    console.error("[Gemini] No API key configured");
+    return null;
+  }
 
   const url = `${GEMINI_API_URL}/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
   const prompt = buildPrompt(title, transcript, extractLimit);
@@ -187,31 +134,39 @@ export async function extractTagsWithGemini(
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
+        const isCreditError = text.toLowerCase().includes("credits are depleted");
+        if (isCreditError) {
+          console.error("[Gemini] Billing error: prepayment credits depleted. Visit https://ai.studio/projects to add credits.");
+        } else {
+          console.error(`[Gemini] HTTP ${res.status}: ${text.slice(0, 500)}`);
+        }
         // Rate limit or server error — retry
-        if (res.status === 429 || res.status >= 500) {
+        if ((res.status === 429 && !isCreditError) || res.status >= 500) {
           if (attempt < maxRetries - 1) {
             await sleep(1000 * Math.pow(2, attempt));
             continue;
           }
         }
-        console.error(`Gemini API error: ${res.status} ${text}`);
         return null;
       }
 
       const data = (await res.json()) as GeminiResponse;
 
       if (data.error) {
-        console.error(`Gemini API error: ${data.error.code} ${data.error.message}`);
+        console.error(`[Gemini] API error ${data.error.code}: ${data.error.message}`);
         return null;
       }
 
       const candidate = data.candidates?.[0];
       if (candidate?.finishReason === "MAX_TOKENS") {
-        console.error("Gemini response truncated (MAX_TOKENS). Increase maxOutputTokens or reduce prompt length.");
+        console.error("[Gemini] Response truncated (MAX_TOKENS)");
       }
 
       const rawText = candidate?.content?.parts?.[0]?.text;
-      if (!rawText) return null;
+      if (!rawText) {
+        console.error("[Gemini] No text in response. Candidate:", JSON.stringify(candidate).slice(0, 500));
+        return null;
+      }
 
       const cleaned = rawText
         .trim()
@@ -222,15 +177,16 @@ export async function extractTagsWithGemini(
       try {
         parsed = JSON.parse(cleaned);
       } catch {
-        console.error("Gemini returned unparseable JSON:", cleaned.slice(0, 500));
+        console.error("[Gemini] Unparseable JSON:", cleaned.slice(0, 500));
         return null;
       }
 
       if (!Array.isArray(parsed.tags)) {
-        console.error("Gemini returned unexpected structure:", JSON.stringify(parsed).slice(0, 500));
+        console.error("[Gemini] Unexpected structure:", JSON.stringify(parsed).slice(0, 500));
         return null;
       }
 
+      const beforeFilter = parsed.tags.length;
       const tags = parsed.tags
         .map((t) => ({
           name: cleanTag(t.tag),
@@ -240,13 +196,17 @@ export async function extractTagsWithGemini(
         .filter((t) => !isGenericFiller(t.name));
 
       const deduped = deduplicateTags(tags);
-      return selectTagsByScore(deduped);
+      const result = selectTagsByScore(deduped);
+      console.log(
+        `[Gemini] Tags: raw=${beforeFilter} → afterFilter=${tags.length} → deduped=${deduped.length} → final=${result.length}`
+      );
+      return result;
     } catch (err) {
+      console.error(`[Gemini] Attempt ${attempt + 1} failed:`, err);
       if (attempt < maxRetries - 1) {
         await sleep(1000 * Math.pow(2, attempt));
         continue;
       }
-      console.error("Gemini extraction failed:", err);
       return null;
     }
   }

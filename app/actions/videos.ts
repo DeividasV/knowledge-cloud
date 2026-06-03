@@ -296,7 +296,13 @@ export async function generateVideoTags(videoId: string) {
   // LLM-powered extraction
   const extracted = await extractVideoTags(video.title, video.transcript, method);
   if (!extracted || extracted.length === 0) {
-    throw new Error("Tag extraction failed. Check your extraction backend (Ollama or Gemini).");
+    const backend = method === "gemini" ? "Gemini" : "Ollama";
+    throw new Error(
+      `Tag extraction failed via ${backend}. ` +
+        (method === "gemini"
+          ? "Check your GEMINI_API_KEY and billing credits."
+          : "Make sure Ollama is running and the model is loaded. The video transcript may be too long for the 180s timeout.")
+    );
   }
 
   const tagNames = extracted;

@@ -1,7 +1,13 @@
-export interface TagResult {
-  name: string;
-  score: number;
-}
+import {
+  type TagResult,
+  cleanTag,
+  isGenericFiller,
+  deduplicateTags,
+  selectTagsByScore,
+} from "./shared";
+
+export type { TagResult };
+export { cleanTag, isGenericFiller, deduplicateTags, selectTagsByScore };
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://localhost:11434";
 const DEFAULT_MODEL = "qwen3:8b";
@@ -21,11 +27,18 @@ export async function extractTagsWithOllama(
   // Check if Ollama is reachable
   try {
     const res = await fetch(`${OLLAMA_HOST}/api/tags`, { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[Ollama] Health check failed: ${res.status}`);
+      return null;
+    }
     const data = (await res.json()) as { models?: Array<{ name: string }> };
     const hasModel = data.models?.some((m) => m.name === model || m.name.startsWith(model + ":"));
-    if (!hasModel) return null;
+    if (!hasModel) {
+      console.error(`[Ollama] Model "${model}" not found`);
+      return null;
+    }
   } catch {
+    console.error("[Ollama] Not reachable at", OLLAMA_HOST);
     return null;
   }
 
@@ -79,7 +92,10 @@ Output:`;
       signal: AbortSignal.timeout(180000),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[Ollama] Generate failed: ${res.status}`);
+      return null;
+    }
 
     const data = (await res.json()) as { response?: string };
     const raw = (data.response?.trim() || "")
@@ -94,7 +110,10 @@ Output:`;
       tags = parseStringTags(raw);
     }
 
-    if (tags.length === 0) return null;
+    if (tags.length === 0) {
+      console.error("[Ollama] Could not parse tags from response:", raw.slice(0, 300));
+      return null;
+    }
 
     // Clean and deduplicate
     const cleaned = tags
@@ -106,10 +125,17 @@ Output:`;
       .filter((t) => !isGenericFiller(t.name));
 
     const deduped = deduplicateTags(cleaned);
-
-    // Dynamic selection based on score distribution (elbow method)
-    return selectTagsByScore(deduped);
-  } catch {
+    const result = selectTagsByScore(deduped);
+    console.log(
+      `[Ollama] Tags: raw=${tags.length} → cleaned=${cleaned.length} → deduped=${deduped.length} → final=${result.length}`
+    );
+    return result;
+  } catch (err: any) {
+    if (err.name === "TimeoutError" || err.message?.includes("timeout")) {
+      console.error("[Ollama] Request timed out (180s). Transcript may be too long.");
+    } else {
+      console.error("[Ollama] Generate error:", err.message || err);
+    }
     return null;
   }
 }
@@ -153,102 +179,24 @@ function parseStringTags(raw: string): TagResult[] {
   }
 }
 
-function cleanTag(tag: string): string {
-  return tag
-    .toLowerCase()
-    .replace(/^["']|["']$/g, "")
-    .replace(/[\[\]()]/g, "")
-    .trim()
-    .replace(/-/g, " ");
-}
-
 function buildPromptContext(title: string, transcript: string | null): string {
   const parts: string[] = [];
   parts.push(`Title: ${title}`);
 
   if (transcript && transcript.length > 0) {
-    const truncated =
-      transcript.length > 2000 ? transcript.slice(0, 2000) + "..." : transcript;
-    parts.push(`Transcript: ${truncated}`);
+    // For CPU-only Ollama, keep context short to avoid timeouts.
+    // Sample from beginning (intro) and end (conclusion) for best topic coverage.
+    const maxLen = 800;
+    if (transcript.length <= maxLen) {
+      parts.push(`Transcript: ${transcript}`);
+    } else {
+      const head = transcript.slice(0, Math.floor(maxLen * 0.7));
+      const tail = transcript.slice(-Math.floor(maxLen * 0.3));
+      parts.push(`Transcript:\n${head}\n... [middle skipped] ...\n${tail}`);
+    }
   }
 
   return parts.join("\n");
-}
-
-function isGenericFiller(tag: string): boolean {
-  const fillers = new Set([
-    "video", "youtube", "channel", "today", "talk", "discuss", "look",
-    "going", "want", "think", "know", "really", "actually", "basically",
-    "literally", "obviously", "amazing", "shocking", "incredible", "awesome",
-    "this video", "in this", "we are", "let us", "going to", "talk about",
-    "hello everyone", "thanks for", "dont forget", "make sure", "in conclusion",
-    "сегодня", "видео", "канал", "ролик", "смотрим", "говорим", "обсудим",
-    "давайте", "сейчас", "начнем", "поговорим", "расскажу", "спасибо",
-    "всем привет", "не забудьте", "обязательно", "в заключение",
-  ]);
-  return fillers.has(tag.toLowerCase());
-}
-
-/**
- * Normalize near-duplicate tags to a canonical form.
- */
-function deduplicateTags(tags: TagResult[]): TagResult[] {
-  const seen = new Set<string>();
-  const result: TagResult[] = [];
-
-  for (const tag of tags) {
-    const normalized = tag.name.toLowerCase().trim();
-    const isDuplicate = Array.from(seen).some(
-      (s) => s !== normalized && (s.includes(normalized) || normalized.includes(s))
-    );
-    if (!isDuplicate) {
-      result.push(tag);
-      seen.add(normalized);
-    }
-  }
-
-  return result;
-}
-
-/**
- * Select tags using a two-pass approach:
- * 1. Look for the latest natural quality drop (elbow) in the score distribution.
- * 2. If scores are evenly spaced (no elbow), fall back to an absolute quality band.
- * This handles both rich videos with clear topic hierarchies AND videos where
- * the LLM spaces scores too evenly.
- */
-function selectTagsByScore(tags: TagResult[]): TagResult[] {
-  if (tags.length <= 2) return tags;
-
-  // Sort by score descending (best first)
-  const sorted = [...tags].sort((a, b) => b.score - a.score);
-
-  // Pass 1: find the latest-occurring meaningful gap (>= 0.04).
-  // Scanning from the end keeps more tags while still cutting at a quality drop.
-  let cutIdx = sorted.length;
-  for (let i = sorted.length - 1; i >= 1; i--) {
-    const gap = sorted[i - 1].score - sorted[i].score;
-    if (gap >= 0.04) {
-      cutIdx = i;
-      break;
-    }
-  }
-
-  if (cutIdx < sorted.length) {
-    // Keep at least 6 tags if a gap is found, but respect the cut
-    return sorted.slice(0, Math.max(6, cutIdx));
-  }
-
-  // Pass 2: no natural gap found (evenly-spaced scores).
-  // Use an absolute quality band: keep tags with score >= 0.55.
-  const selected = sorted.filter((t) => t.score >= 0.55);
-
-  // Ensure at least 3 tags if available
-  if (selected.length < 3 && sorted.length >= 3) {
-    return sorted.slice(0, 3);
-  }
-
-  return selected;
 }
 
 export async function isOllamaAvailable(): Promise<boolean> {
