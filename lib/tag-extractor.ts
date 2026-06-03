@@ -142,16 +142,18 @@ async function extractSingle(
   transcript: string | null,
   method: string,
   geminiModel?: string,
-  language?: string
+  language?: string,
+  extractLimit?: number
 ): Promise<TagResult[] | null> {
+  const limit = extractLimit && extractLimit > 0 ? extractLimit : 15;
   if (method === "gemini") {
     if (!isGeminiConfigured()) {
       console.error("[extractVideoTags] Gemini selected but API key missing/invalid");
       return null;
     }
-    return extractTagsWithGemini(title, transcript, 15, geminiModel, language);
+    return extractTagsWithGemini(title, transcript, limit, geminiModel, language);
   }
-  return extractTagsWithOllama(title, transcript, 15, language);
+  return extractTagsWithOllama(title, transcript, limit, language);
 }
 
 /**
@@ -171,7 +173,8 @@ export async function extractVideoTags(
   method?: string,
   geminiModel?: string,
   ollamaMaxChunks?: number,
-  language?: string
+  language?: string,
+  extractLimit?: number
 ): Promise<TagResult[] | null> {
   const resolved = resolveMethod(method);
   const modelLabel = geminiModel || "default";
@@ -179,8 +182,10 @@ export async function extractVideoTags(
     `[extractVideoTags] method=${resolved}, model=${modelLabel}, title="${title.slice(0, 60)}..."`
   );
 
+  const limit = extractLimit && extractLimit > 0 ? extractLimit : 15;
+
   if (!transcript || transcript.length === 0) {
-    return extractSingle(title, null, resolved, geminiModel, language);
+    return extractSingle(title, null, resolved, geminiModel, language, limit);
   }
 
   /* ── Gemini Flash Lite path ─────────────────────────────────────── */
@@ -189,7 +194,7 @@ export async function extractVideoTags(
       console.log(
         `[extractVideoTags] Flash Lite: ${transcript.length} chars ≤ ${FLASH_LITE_SINGLE_MAX_CHARS} → single call`
       );
-      return extractSingle(title, transcript, resolved, geminiModel, language);
+      return extractSingle(title, transcript, resolved, geminiModel, language, limit);
     }
 
     const segments = segmentByTopic(transcript);
@@ -205,7 +210,8 @@ export async function extractVideoTags(
         segments[i],
         resolved,
         geminiModel,
-        language
+        language,
+        limit
       );
       if (result && result.length > 0) {
         allResults.push(result);
@@ -244,7 +250,7 @@ export async function extractVideoTags(
   };
 
   if (transcript.length <= cfg.size) {
-    return extractSingle(title, transcript, resolved, geminiModel, language);
+    return extractSingle(title, transcript, resolved, geminiModel, language, limit);
   }
 
   const chunks = createChunks(transcript, cfg);
@@ -291,7 +297,7 @@ export async function extractVideoTags(
 
   const merged = mergeChunkResults(allResults);
   const deduped = deduplicateTags(merged);
-  const final = selectTagsByScore(deduped);
+  const final = selectTagsByScore(deduped, limit);
   console.log(
     `[extractVideoTags] Merged: ${merged.length} → deduped=${deduped.length} → final=${final.length}`
   );

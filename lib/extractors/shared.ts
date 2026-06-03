@@ -48,14 +48,17 @@ export function deduplicateTags(tags: TagResult[]): TagResult[] {
  * Select tags using a two-pass approach:
  * 1. Look for the latest natural quality drop (elbow) in the score distribution.
  * 2. If scores are evenly spaced (no elbow), fall back to an absolute quality band.
+ *
+ * @param maxTags - hard ceiling on how many tags to keep (from user settings)
  */
-export function selectTagsByScore(tags: TagResult[]): TagResult[] {
-  if (tags.length <= 2) return tags;
+export function selectTagsByScore(tags: TagResult[], maxTags?: number): TagResult[] {
+  const ceiling = maxTags && maxTags > 0 ? maxTags : 999;
+  if (tags.length <= 2) return tags.slice(0, ceiling);
 
   const sorted = [...tags].sort((a, b) => b.score - a.score);
 
   let cutIdx = sorted.length;
-  for (let i = sorted.length - 1; i >= 1; i--) {
+  for (let i = Math.min(sorted.length, ceiling) - 1; i >= 1; i--) {
     const gap = sorted[i - 1].score - sorted[i].score;
     if (gap >= 0.04) {
       cutIdx = i;
@@ -63,14 +66,16 @@ export function selectTagsByScore(tags: TagResult[]): TagResult[] {
     }
   }
 
+  const minKeep = Math.min(Math.max(3, Math.ceil(ceiling * 0.12)), ceiling);
+
   if (cutIdx < sorted.length) {
-    return sorted.slice(0, Math.max(6, cutIdx));
+    return sorted.slice(0, Math.max(minKeep, Math.min(cutIdx, ceiling)));
   }
 
-  const selected = sorted.filter((t) => t.score >= 0.55);
+  const selected = sorted.filter((t) => t.score >= 0.55).slice(0, ceiling);
 
-  if (selected.length < 3 && sorted.length >= 3) {
-    return sorted.slice(0, 3);
+  if (selected.length < minKeep && sorted.length >= minKeep) {
+    return sorted.slice(0, Math.min(minKeep, ceiling));
   }
 
   return selected;

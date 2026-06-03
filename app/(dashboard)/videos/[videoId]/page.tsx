@@ -78,24 +78,29 @@ export default async function VideoDetailPage({ params }: PageProps) {
 
   // Count other videos with same tag (from user's subscribed channels)
   const tagIds = tags.map((t) => t.id);
-  const tagCountRows =
-    tagIds.length > 0
-      ? await prisma.videoTag.groupBy({
-          by: ["tagId"],
-          where: {
-            tagId: { in: tagIds },
-            videoId: { not: videoId },
-            video: {
-              channel: { users: { some: { id: userId } } },
-            },
-          },
-          _count: { videoId: true },
-        })
-      : [];
+  let tagCounts: Map<string, number> = new Map();
 
-  const tagCounts = new Map<string, number>();
-  for (const row of tagCountRows) {
-    tagCounts.set(row.tagId, row._count.videoId);
+  if (tagIds.length > 0) {
+    // Fast path: get user's channel IDs first, then filter videoTag directly
+    const userChannels = await prisma.channel.findMany({
+      where: { users: { some: { id: userId } } },
+      select: { id: true },
+    });
+    const channelIds = userChannels.map((c) => c.id);
+
+    const tagCountRows = await prisma.videoTag.groupBy({
+      by: ["tagId"],
+      where: {
+        tagId: { in: tagIds },
+        videoId: { not: videoId },
+        video: { channelId: { in: channelIds } },
+      },
+      _count: { videoId: true },
+    });
+
+    for (const row of tagCountRows) {
+      tagCounts.set(row.tagId, row._count.videoId);
+    }
   }
 
   return (
