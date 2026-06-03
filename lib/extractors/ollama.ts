@@ -184,16 +184,7 @@ function buildPromptContext(title: string, transcript: string | null): string {
   parts.push(`Title: ${title}`);
 
   if (transcript && transcript.length > 0) {
-    // For CPU-only Ollama, keep context short to avoid timeouts.
-    // Sample from beginning (intro) and end (conclusion) for best topic coverage.
-    const maxLen = 800;
-    if (transcript.length <= maxLen) {
-      parts.push(`Transcript: ${transcript}`);
-    } else {
-      const head = transcript.slice(0, Math.floor(maxLen * 0.7));
-      const tail = transcript.slice(-Math.floor(maxLen * 0.3));
-      parts.push(`Transcript:\n${head}\n... [middle skipped] ...\n${tail}`);
-    }
+    parts.push(`Transcript: ${transcript}`);
   }
 
   return parts.join("\n");

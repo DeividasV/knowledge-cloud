@@ -27,34 +27,25 @@ function resolveMethod(method?: string): string {
 interface ChunkConfig {
   size: number;      // chars per chunk
   overlap: number;   // chars shared between consecutive chunks
-  maxChunks: number; // hard ceiling on API calls
-  perChunkLimit: number; // extractLimit passed to each chunk call
+  maxChunks: number; // safety ceiling to prevent timeouts (ollama only)
 }
 
 const CHUNK_CONFIGS: Record<string, ChunkConfig> = {
-  ollama: { size: 700, overlap: 200, maxChunks: 3, perChunkLimit: 10 },
-  gemini: { size: 1200, overlap: 300, maxChunks: 8, perChunkLimit: 12 },
+  ollama: { size: 800, overlap: 150, maxChunks: 5 },
+  gemini: { size: 2000, overlap: 300, maxChunks: 999 },
 };
 
 function createChunks(text: string, cfg: ChunkConfig): string[] {
   if (text.length <= cfg.size) return [text];
 
-  // If we'd exceed maxChunks, enlarge chunk size proportionally
-  const effective = cfg.size - cfg.overlap;
-  const needed = Math.ceil(text.length / effective);
-  let size = cfg.size;
-  if (needed > cfg.maxChunks) {
-    const adjEffective = Math.ceil(text.length / cfg.maxChunks);
-    size = adjEffective + cfg.overlap;
-  }
-
   const chunks: string[] = [];
   let start = 0;
   while (start < text.length) {
-    const end = Math.min(start + size, text.length);
+    const end = Math.min(start + cfg.size, text.length);
     chunks.push(text.slice(start, end));
     if (end === text.length) break;
     start = end - cfg.overlap;
+    if (start >= end) break;
   }
   return chunks;
 }
@@ -128,17 +119,27 @@ export async function extractVideoTags(
 
   // Long transcript — chunk and merge
   const chunks = createChunks(transcript, cfg);
-  console.log(`[extractVideoTags] Chunking into ${chunks.length} parts (config: ${JSON.stringify(cfg)})`);
+  const willProcess = Math.min(chunks.length, cfg.maxChunks);
+  const skipped = chunks.length - willProcess;
+
+  if (skipped > 0) {
+    console.warn(
+      `[extractVideoTags] Transcript ${transcript.length} chars → ${chunks.length} chunks. ` +
+        `Processing first ${willProcess} (skipping last ${skipped} due to ${resolved} speed limits).`
+    );
+  } else {
+    console.log(`[extractVideoTags] Transcript ${transcript.length} chars → ${chunks.length} chunks, processing all`);
+  }
 
   const allResults: TagResult[][] = [];
-  for (let i = 0; i < chunks.length; i++) {
-    const chunkTitle = `${title} [part ${i + 1}/${chunks.length}]`;
+  for (let i = 0; i < willProcess; i++) {
+    const chunkTitle = `${title} [part ${i + 1}/${willProcess}]`;
     const result = await extractSingle(chunkTitle, chunks[i], resolved);
     if (result && result.length > 0) {
       allResults.push(result);
-      console.log(`[extractVideoTags] Chunk ${i + 1}/${chunks.length}: ${result.length} tags`);
+      console.log(`[extractVideoTags] Chunk ${i + 1}/${willProcess}: ${result.length} tags`);
     } else {
-      console.log(`[extractVideoTags] Chunk ${i + 1}/${chunks.length}: no tags`);
+      console.log(`[extractVideoTags] Chunk ${i + 1}/${willProcess}: no tags`);
     }
   }
 
