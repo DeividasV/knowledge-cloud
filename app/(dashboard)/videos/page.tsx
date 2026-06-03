@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlaySquare } from "lucide-react";
+import { PlaySquare, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
 import { VideoQuickToggle } from "@/components/video-quick-toggle";
 import { VideoTranscript } from "@/components/video-transcript";
@@ -102,13 +103,18 @@ export default async function VideosPage({
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {items.map((video) => (
             <Card key={video.id} className="overflow-hidden group">
-              <div className="aspect-video bg-muted relative">
+              <Link href={`/videos/${video.id}`} className="block aspect-video bg-muted relative group/link">
                 {video.thumbnail ? (
-                  <img
-                    src={video.thumbnail}
-                    alt={video.title}
-                    className="h-full w-full object-cover"
-                  />
+                  <>
+                    <img
+                      src={video.thumbnail}
+                      alt={video.title}
+                      className="h-full w-full object-cover transition-transform group-hover/link:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover/link:bg-black/20 transition-colors flex items-center justify-center">
+                      <ArrowRight className="h-6 w-6 text-white opacity-0 group-hover/link:opacity-100 transition-opacity" />
+                    </div>
+                  </>
                 ) : (
                   <div className="flex h-full items-center justify-center">
                     <PlaySquare className="h-8 w-8 text-muted-foreground" />
@@ -122,12 +128,14 @@ export default async function VideosPage({
                     }
                   />
                 </div>
-              </div>
+              </Link>
               <CardContent className="p-4 space-y-3">
                 <div>
-                  <h3 className="font-medium text-sm line-clamp-2" title={video.title}>
-                    {video.title}
-                  </h3>
+                  <Link href={`/videos/${video.id}`}>
+                    <h3 className="font-medium text-sm line-clamp-2 hover:text-primary transition-colors" title={video.title}>
+                      {video.title}
+                    </h3>
+                  </Link>
                   <p className="text-xs text-muted-foreground mt-1">
                     {video.channel.title}
                     {video.category ? ` · ${video.category}` : ""}
@@ -265,13 +273,18 @@ async function FilteredVideos({
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {videos.map((video) => (
           <Card key={video.id} className="overflow-hidden group">
-            <div className="aspect-video bg-muted relative">
+            <Link href={`/videos/${video.id}`} className="block aspect-video bg-muted relative group/link">
               {video.thumbnail ? (
-                <img
-                  src={video.thumbnail}
-                  alt={video.title}
-                  className="h-full w-full object-cover"
-                />
+                <>
+                  <img
+                    src={video.thumbnail}
+                    alt={video.title}
+                    className="h-full w-full object-cover transition-transform group-hover/link:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover/link:bg-black/20 transition-colors flex items-center justify-center">
+                    <ArrowRight className="h-6 w-6 text-white opacity-0 group-hover/link:opacity-100 transition-opacity" />
+                  </div>
+                </>
               ) : (
                 <div className="flex h-full items-center justify-center">
                   <PlaySquare className="h-8 w-8 text-muted-foreground" />
@@ -283,12 +296,14 @@ async function FilteredVideos({
                   currentStatus={status}
                 />
               </div>
-            </div>
+            </Link>
             <CardContent className="p-4 space-y-3">
               <div>
-                <h3 className="font-medium text-sm line-clamp-2" title={video.title}>
-                  {video.title}
-                </h3>
+                <Link href={`/videos/${video.id}`}>
+                  <h3 className="font-medium text-sm line-clamp-2 hover:text-primary transition-colors" title={video.title}>
+                    {video.title}
+                  </h3>
+                </Link>
                 <p className="text-xs text-muted-foreground mt-1">
                   {video.channel.title}
                   {video.category ? ` · ${video.category}` : ""}

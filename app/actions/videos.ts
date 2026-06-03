@@ -50,6 +50,7 @@ export async function updateVideoStatus(
   revalidatePath("/");
   revalidatePath("/videos");
   revalidatePath("/channels/[channelId]");
+  revalidatePath("/videos/[videoId]");
   return result;
 }
 
@@ -78,6 +79,30 @@ export async function markAllChannelVideosAsWatched(channelId: string) {
   revalidatePath("/");
   revalidatePath("/videos");
   revalidatePath("/channels/[channelId]");
+  revalidatePath("/videos/[videoId]");
+}
+
+export async function getVideoById(videoId: string) {
+  const userId = await getUserId();
+
+  const video = await prisma.video.findFirst({
+    where: {
+      id: videoId,
+      channel: { users: { some: { id: userId } } },
+    },
+    include: {
+      channel: true,
+      videoTags: {
+        include: { tag: true },
+        orderBy: { score: "desc" },
+      },
+      userStates: {
+        where: { userId },
+      },
+    },
+  });
+
+  return video;
 }
 
 export async function getRecentVideos(limit = 10) {
@@ -212,6 +237,7 @@ export async function fetchAndStoreTranscript(videoId: string) {
 
   revalidatePath("/videos");
   revalidatePath("/channels/[channelId]");
+  revalidatePath("/videos/[videoId]");
   return { success: true, length: result.text.length, lang: result.lang };
 }
 
@@ -252,6 +278,7 @@ export async function fetchTranscriptsBatch(videoIds: string[]) {
 
   revalidatePath("/videos");
   revalidatePath("/channels/[channelId]");
+  revalidatePath("/videos/[videoId]");
   return results;
 }
 
@@ -343,6 +370,7 @@ export async function generateVideoTags(videoId: string) {
 
   revalidatePath("/videos");
   revalidatePath("/channels/[channelId]");
+  revalidatePath("/videos/[videoId]");
   return { success: true, tags: tagNames };
 }
 

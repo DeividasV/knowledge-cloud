@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { generateVideoTags } from "@/app/actions/videos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Loader2, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, Loader2, RefreshCw, ArrowRight } from "lucide-react";
 
 export interface ScoredTag {
   id: string;
@@ -13,36 +14,27 @@ export interface ScoredTag {
   score: number;
 }
 
-function getStrongTags(tags: ScoredTag[]): {
-  strong: ScoredTag[];
-  weak: ScoredTag[];
-} {
-  if (tags.length <= 3) return { strong: tags, weak: [] };
+function getStrongTags(tags: ScoredTag[]): ScoredTag[] {
+  if (tags.length <= 3) return tags;
 
   const maxScore = tags[0]?.score ?? 0;
-  if (maxScore <= 0) return { strong: tags.slice(0, 3), weak: tags.slice(3) };
+  if (maxScore <= 0) return tags.slice(0, 3);
 
-  // Threshold: tags with at least 30% of the top score
   const threshold = maxScore * 0.3;
-
   const strong: ScoredTag[] = [];
-  const weak: ScoredTag[] = [];
 
   for (const tag of tags) {
-    if (tag.score >= threshold && strong.length < 5) {
+    if (tag.score >= threshold && strong.length < 3) {
       strong.push(tag);
-    } else {
-      weak.push(tag);
     }
   }
 
-  // Ensure at least 2 tags shown if available
-  if (strong.length < 2 && tags.length >= 2) {
-    const needed = 2 - strong.length;
-    strong.push(...weak.splice(0, needed));
+  // Ensure at least 1 tag shown if available
+  if (strong.length === 0 && tags.length > 0) {
+    strong.push(tags[0]);
   }
 
-  return { strong, weak };
+  return strong;
 }
 
 export function VideoTags({
@@ -53,7 +45,6 @@ export function VideoTags({
   tags: ScoredTag[];
 }) {
   const [isPending, startTransition] = useTransition();
-  const [expanded, setExpanded] = useState(false);
   const router = useRouter();
 
   const handleGenerate = () => {
@@ -63,48 +54,29 @@ export function VideoTags({
     });
   };
 
-  const { strong, weak } = getStrongTags(tags);
-  const hasWeak = weak.length > 0;
+  const strong = getStrongTags(tags);
+  const hasMore = tags.length > strong.length;
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {(expanded ? tags : strong).map((tag) => (
+      {strong.map((tag) => (
         <Badge
           key={tag.id}
           variant="outline"
           className="text-[10px] px-1.5 py-0 font-normal bg-secondary/30"
         >
           {tag.name}
-          {expanded && (
-            <span className="text-muted-foreground ml-1 tabular-nums">
-              {tag.score.toFixed(2)}
-            </span>
-          )}
         </Badge>
       ))}
 
-      {!expanded && hasWeak && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setExpanded(true)}
-          className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+      {hasMore && (
+        <Link
+          href={`/videos/${videoId}`}
+          className="inline-flex items-center h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
         >
-          <ChevronDown className="h-3 w-3 mr-0.5" />
-          +{weak.length}
-        </Button>
-      )}
-
-      {expanded && hasWeak && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setExpanded(false)}
-          className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
-        >
-          <ChevronUp className="h-3 w-3 mr-0.5" />
-          Less
-        </Button>
+          <ArrowRight className="h-3 w-3 mr-0.5" />
+          Details
+        </Link>
       )}
 
       {tags.length === 0 ? (
