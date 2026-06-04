@@ -26,6 +26,22 @@ export function isGenericFiller(tag: string): boolean {
   return fillers.has(tag.toLowerCase());
 }
 
+/**
+ * Detect tags written in the wrong script for the target language.
+ * For English: reject Cyrillic, CJK, Arabic, Hebrew, etc.
+ * For Lithuanian: reject Cyrillic, CJK, Arabic, Hebrew, etc. (Latin + Lithuanian diacritics allowed).
+ */
+export function filterByScript(tag: string, language: string): boolean {
+  if (language === "lt") {
+    // Allow Lithuanian Latin + diacritics, digits, spaces, common punctuation
+    // Reject Cyrillic, CJK, Arabic, Hebrew
+    return !/[\u0400-\u04FF\u0500-\u052F\u2DE0-\u2DFF\uA640-\uA69F\u0600-\u06FF\u0750-\u077F\u0590-\u05FF\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF]/u.test(tag);
+  }
+  // English (default): allow basic Latin only + digits, spaces, common punctuation
+  // Reject anything outside basic Latin + common symbols
+  return !/[\u0400-\u04FF\u0500-\u052F\u2DE0-\u2DFF\uA640-\uA69F\u0600-\u06FF\u0750-\u077F\u0590-\u05FF\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF]/u.test(tag);
+}
+
 export function deduplicateTags(tags: TagResult[]): TagResult[] {
   const seen = new Set<string>();
   const result: TagResult[] = [];

@@ -4,6 +4,7 @@ import {
   isGenericFiller,
   deduplicateTags,
   selectTagsByScore,
+  filterByScript,
 } from "./shared";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -31,10 +32,22 @@ const TAG_SCHEMA = {
 function getLanguageInstruction(language: string): string {
   switch (language) {
     case "lt":
-      return "Output tags in Lithuanian only. Even if the video is in another language, translate concepts to their standard Lithuanian terms. All tags must be in Lithuanian.";
+      return `LANGUAGE: Output tags in LITHUANIAN ONLY. This is MANDATORY — not a suggestion. Every single tag must be written in Lithuanian using Lithuanian characters (ąčęėįšųūž). If the video is in Russian, English, Chinese, or any other language, you MUST translate every concept to its standard Lithuanian term before outputting it.
+Examples of CORRECT behavior:
+- Video about "drugs" → tag: "narkotikai"
+- Video about "russian empire" → tag: "rusijos imperija"
+- Video about "coronavirus" → tag: "koronavirusas"
+Examples of INCORRECT behavior (tags will be REJECTED):
+- "наркотики", "российская империя", "drugs", "russian empire", "coronavirus"`;
     case "en":
     default:
-      return "Output tags in English only. Even if the video is in another language, translate concepts to their standard English terms.";
+      return `LANGUAGE: Output tags in ENGLISH ONLY. This is MANDATORY — not a suggestion. Every single tag must be written in English using basic Latin letters (a-z). If the video is in Russian, Chinese, Lithuanian, Arabic, or any other language, you MUST translate every concept to its standard English term before outputting it.
+Examples of CORRECT behavior:
+- Video about "наркотики" → tag: "drugs"
+- Video about "российская империя" → tag: "russian empire"
+- Video about "koronavirusas" → tag: "coronavirus"
+Examples of INCORRECT behavior (tags will be REJECTED):
+- "наркотики", "россия", "китай", "koronavirusas", "narkotikai"`;
   }
 }
 
@@ -193,7 +206,7 @@ export async function extractTagsWithGemini(
       }
 
       const beforeFilter = parsed.tags.length;
-      const tags = parsed.tags
+      let tags = parsed.tags
         .map((t) => ({
           name: cleanTag(t.tag),
           score: Math.max(0, Math.min(1, Number(t.relevance ?? 0.5))),
@@ -201,10 +214,14 @@ export async function extractTagsWithGemini(
         .filter((t) => t.name.length >= 2 && t.name.length <= 40)
         .filter((t) => !isGenericFiller(t.name));
 
+      const beforeScript = tags.length;
+      tags = tags.filter((t) => filterByScript(t.name, language));
+      const scriptDropped = beforeScript - tags.length;
+
       const deduped = deduplicateTags(tags);
       const result = selectTagsByScore(deduped);
       console.log(
-        `[Gemini] Tags: raw=${beforeFilter} → afterFilter=${tags.length} → deduped=${deduped.length} → final=${result.length}`
+        `[Gemini] Tags: raw=${beforeFilter} → afterFilter=${tags.length}${scriptDropped > 0 ? ` (dropped ${scriptDropped} wrong-script)` : ""} → deduped=${deduped.length} → final=${result.length}`
       );
       return result;
     } catch (err) {

@@ -4,10 +4,11 @@ import {
   isGenericFiller,
   deduplicateTags,
   selectTagsByScore,
+  filterByScript,
 } from "./shared";
 
 export type { TagResult };
-export { cleanTag, isGenericFiller, deduplicateTags, selectTagsByScore };
+export { cleanTag, isGenericFiller, deduplicateTags, selectTagsByScore, filterByScript };
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://localhost:11434";
 const DEFAULT_MODEL = "qwen3:8b";
@@ -118,7 +119,7 @@ Output:`;
     }
 
     // Clean and deduplicate
-    const cleaned = tags
+    let cleaned = tags
       .map((t) => ({
         name: cleanTag(t.name),
         score: Math.max(0, Math.min(1, t.score)),
@@ -126,10 +127,14 @@ Output:`;
       .filter((t) => t.name.length >= 2 && t.name.length <= 40)
       .filter((t) => !isGenericFiller(t.name));
 
+    const beforeScript = cleaned.length;
+    cleaned = cleaned.filter((t) => filterByScript(t.name, language));
+    const scriptDropped = beforeScript - cleaned.length;
+
     const deduped = deduplicateTags(cleaned);
     const result = selectTagsByScore(deduped);
     console.log(
-      `[Ollama] Tags: raw=${tags.length} → cleaned=${cleaned.length} → deduped=${deduped.length} → final=${result.length}`
+      `[Ollama] Tags: raw=${tags.length} → cleaned=${cleaned.length}${scriptDropped > 0 ? ` (dropped ${scriptDropped} wrong-script)` : ""} → deduped=${deduped.length} → final=${result.length}`
     );
     return result;
   } catch (err: any) {
@@ -184,10 +189,22 @@ function parseStringTags(raw: string): TagResult[] {
 function getLanguageInstruction(language: string): string {
   switch (language) {
     case "lt":
-      return "Output tags in Lithuanian only. Even if the video is in another language, translate concepts to their standard Lithuanian terms. All tags must be in Lithuanian.";
+      return `LANGUAGE: Output tags in LITHUANIAN ONLY. This is MANDATORY — not a suggestion. Every single tag must be written in Lithuanian using Lithuanian characters (ąčęėįšųūž). If the video is in Russian, English, Chinese, or any other language, you MUST translate every concept to its standard Lithuanian term before outputting it.
+Examples of CORRECT behavior:
+- Video about "drugs" → tag: "narkotikai"
+- Video about "russian empire" → tag: "rusijos imperija"
+- Video about "coronavirus" → tag: "koronavirusas"
+Examples of INCORRECT behavior (tags will be REJECTED):
+- "наркотики", "российская империя", "drugs", "russian empire", "coronavirus"`;
     case "en":
     default:
-      return "Output tags in English only. Even if the video is in another language, translate concepts to their standard English terms.";
+      return `LANGUAGE: Output tags in ENGLISH ONLY. This is MANDATORY — not a suggestion. Every single tag must be written in English using basic Latin letters (a-z). If the video is in Russian, Chinese, Lithuanian, Arabic, or any other language, you MUST translate every concept to its standard English term before outputting it.
+Examples of CORRECT behavior:
+- Video about "наркотики" → tag: "drugs"
+- Video about "российская империя" → tag: "russian empire"
+- Video about "koronavirusas" → tag: "coronavirus"
+Examples of INCORRECT behavior (tags will be REJECTED):
+- "наркотики", "россия", "китай", "koronavirusas", "narkotikai"`;
   }
 }
 
