@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="50%" stop-color="#312e81"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#c4b5fd" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#c4b5fd" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="circle1" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </radialGradient>
+    <radialGradient id="circle2" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </radialGradient>
+    <radialGradient id="circle3" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </radialGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)"/>
+  
+  <circle cx="256" cy="256" r="220" fill="url(#glow1)">
+    <animate attributeName="r" values="220;240;220" dur="4s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.8;1;0.8" dur="4s" repeatCount="indefinite"/>
+  </circle>
+  
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#c4b5fd" stroke-width="2" stroke-dasharray="12 6" opacity="0.4">
+    <animateTransform attributeName="transform" type="rotate" from="0 256 256" to="360 256 256" dur="20s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#c4b5fd" stroke-width="1" stroke-dasharray="8 12" opacity="0.25">
+    <animateTransform attributeName="transform" type="rotate" from="360 256 256" to="0 256 256" dur="30s" repeatCount="indefinite"/>
+  </circle>
+  
+  <circle cx="176" cy="280" r="130" fill="url(#circle1)" opacity="0.9"/>
+  <circle cx="336" cy="280" r="130" fill="url(#circle2)" opacity="0.9"/>
+  <circle cx="256" cy="190" r="140" fill="url(#circle3)" opacity="0.9"/>
+  
+  <circle cx="216" cy="245" r="12" fill="#c4b5fd" opacity="0.8">
+    <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="296" cy="245" r="12" fill="#c4b5fd" opacity="0.8">
+    <animate attributeName="opacity" values="1;0.8;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="256" cy="215" r="12" fill="#c4b5fd" opacity="0.8">
+    <animate attributeName="opacity" values="0.9;1;0.9" dur="2.5s" repeatCount="indefinite"/>
+  </circle>
+  
+  <line x1="216" y1="245" x2="296" y2="245" stroke="#c4b5fd" stroke-width="2" opacity="0.5"/>
+  <line x1="216" y1="245" x2="256" y2="215" stroke="#c4b5fd" stroke-width="2" opacity="0.5"/>
+  <line x1="296" y1="245" x2="256" y2="215" stroke="#c4b5fd" stroke-width="2" opacity="0.5"/>
+  
+  <polygon points="226,235 226,285 286,260" fill="#c4b5fd" opacity="0.3">
+    <animate attributeName="opacity" values="0.3;0.5;0.3" dur="3s" repeatCount="indefinite"/>
+  </polygon>
+  
+  <polygon points="231,238 231,282 281,260" fill="white" filter="url(#glow)"/>
+</svg>
