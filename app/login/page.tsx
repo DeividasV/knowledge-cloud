@@ -1,7 +1,6 @@
 import { signIn } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { YouTubeIcon } from "@/components/youtube-icon";
 
 export default function LoginPage({
   searchParams,
@@ -12,7 +11,7 @@ export default function LoginPage({
 
   const errorMessages: Record<string, string> = {
     Configuration: "Auth configuration error. Check server logs.",
-    AccessDenied: "Access denied. You may need to approve the app in Google permissions.",
+    AccessDenied: "Access denied. Try again.",
     Verification: "The verification token expired. Please try again.",
     OAuthSignin: "Error starting OAuth sign-in. Try again.",
     OAuthCallback: "Error during OAuth callback. Try again.",
@@ -31,11 +30,13 @@ export default function LoginPage({
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <YouTubeIcon className="h-6 w-6 text-primary" />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 text-primary">
+              <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+            </svg>
           </div>
-          <CardTitle className="text-2xl">YouTube Tracker</CardTitle>
+          <CardTitle className="text-2xl">Knowledge Cloud</CardTitle>
           <CardDescription>
-            Connect your YouTube account to track subscriptions and watch progress.
+            Sign in to track videos, organize by tags, and manage your watch progress.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -78,9 +79,9 @@ async function ErrorBanner({ error }: { error: Promise<string | undefined> }) {
   const err = await error;
   if (!err) return null;
 
-  const errorMessages: Record<string, string> = {
+  const messages: Record<string, string> = {
     Configuration: "Auth configuration error. Check server logs.",
-    AccessDenied: "Access denied. You may need to approve the app in Google permissions.",
+    AccessDenied: "Access denied. Try again.",
     Verification: "The verification token expired. Please try again.",
     OAuthSignin: "Error starting OAuth sign-in. Try again.",
     OAuthCallback: "Error during OAuth callback. Try again.",
@@ -97,7 +98,7 @@ async function ErrorBanner({ error }: { error: Promise<string | undefined> }) {
   return (
     <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-700 dark:text-red-300">
       <p className="font-medium">Sign-in Error</p>
-      <p className="mt-1">{errorMessages[err] || errorMessages.Default}</p>
+      <p className="mt-1">{messages[err] || messages.Default}</p>
       <p className="mt-1 text-xs opacity-70">Error code: {err}</p>
     </div>
   );

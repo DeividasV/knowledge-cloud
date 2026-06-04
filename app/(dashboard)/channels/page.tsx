@@ -6,6 +6,7 @@ import { PlaySquare, Users } from "lucide-react";
 import Link from "next/link";
 import { SearchInput } from "@/components/search-input";
 import { CategoryFilter } from "./channels-client";
+import { AddChannelForm } from "@/components/add-channel-form";
 
 export default async function ChannelsPage({
   searchParams,
@@ -67,10 +68,11 @@ export default async function ChannelsPage({
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Channels</h1>
         <p className="text-muted-foreground mt-1">
-          Your subscribed channels and their video counts. ({channels.length} of {totalChannels} shown)
+          Your channels and their video counts. ({channels.length} of {totalChannels} shown)
         </p>
       </div>
 
+      <AddChannelForm />
       <SearchInput placeholder="Search channels by name..." />
 
       <CategoryFilter
@@ -92,7 +94,7 @@ export default async function ChannelsPage({
           <p className="text-sm text-muted-foreground mt-1">
             {query || categoryFilter
               ? "Try different search terms or clear the category filter."
-              : "Sync your subscriptions in Settings to get started."}
+              : "Add a channel above to get started. Paste a YouTube channel URL, @handle, or channel ID."}
           </p>
         </Card>
       ) : (

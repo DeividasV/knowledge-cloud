@@ -9,6 +9,14 @@ import {
   extractVideoTags,
   checkTagExtractionAvailable,
 } from "@/lib/tag-extractor";
+import {
+  extractVideoId,
+  fetchVideoById,
+  fetchChannelDetailsById,
+  parseDuration,
+  getCategoryFromTopics,
+  YOUTUBE_CATEGORY_MAP,
+} from "@/lib/youtube";
 
 async function getUserId(): Promise<string> {
   const session = await auth();
@@ -71,11 +79,10 @@ export async function deleteVideoTags(videoIds: string[]) {
 export async function deleteTagsForVideosWithRussianTags() {
   await getUserId();
 
-  // Find all video IDs that have at least one tag containing Cyrillic characters
   const videoTags = await prisma.videoTag.findMany({
     where: {
       tag: {
-        name: { contains: "а" }, // Prisma doesn't support regex; we filter in JS
+        name: { contains: "а" },
       },
     },
     select: { videoId: true, tag: { select: { name: true } } },
@@ -388,12 +395,10 @@ export async function generateVideoTags(videoId: string) {
 
   const { method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo } = await getUserTagExtractionConfig();
 
-  // LLM-powered extraction
   let extracted;
   try {
     extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo);
   } catch (err: any) {
-    // Propagate specific errors (e.g. credit depletion) with context
     if (err?.message?.includes("credits depleted")) {
       throw err;
     }
@@ -415,7 +420,6 @@ export async function generateVideoTags(videoId: string) {
 
   const tagNames = extracted;
 
-  // Delete existing videoTag relations and create new ones with scores
   await prisma.videoTag.deleteMany({ where: { videoId } });
 
   for (const { name, score } of tagNames) {
@@ -443,7 +447,6 @@ export async function generateVideoTags(videoId: string) {
 export async function generateTagsForUntagged(limit = 100) {
   await getUserId();
 
-  // Find videos without tags
   const untaggedVideos = await prisma.video.findMany({
     where: {
       videoTags: { none: {} },
@@ -462,7 +465,6 @@ export async function generateTagsForUntagged(limit = 100) {
 
   const { method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo } = await getUserTagExtractionConfig();
 
-  // LLM only — fail fast if extraction backend is not available
   const available = await checkTagExtractionAvailable(method);
   if (!available) {
     throw new Error(
@@ -523,7 +525,6 @@ export async function generateTagsForAll(limit = 100) {
 
   const { method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo } = await getUserTagExtractionConfig();
 
-  // LLM only — fail fast if extraction backend is not available
   const available = await checkTagExtractionAvailable(method);
   if (!available) {
     throw new Error(
@@ -578,7 +579,6 @@ export async function generateTagsForChannel(channelId: string) {
 
   const { method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo } = await getUserTagExtractionConfig();
 
-  // LLM only — fail fast if extraction backend is not available
   const available = await checkTagExtractionAvailable(method);
   if (!available) {
     throw new Error(
@@ -959,8 +959,7 @@ export async function setMinDurationSetting(value: number) {
   return minSec;
 }
 
-
-// ── Batch tag generation for progress tracking ──────────────────────────
+// ── Batch tag generation helpers ──────────────────────────────────────
 
 export async function getChannelVideoIds(channelId: string) {
   await getUserId();
@@ -1009,52 +1008,120 @@ export async function getAllVideoIds(limit = 100) {
 export async function generateTagsBatch(videoIds: string[]) {
   await getUserId();
 
-  if (videoIds.length === 0) {
-    return { processed: 0, generated: 0 };
+  const results = [];
+  for (const videoId of videoIds) {
+    try {
+      const result = await generateVideoTags(videoId);
+      results.push({ videoId, status: "success", tags: result.tags });
+    } catch (e: any) {
+      results.push({ videoId, status: "error", error: e.message });
+    }
   }
+  return results;
+}
 
-  const videos = await prisma.video.findMany({
-    where: { id: { in: videoIds } },
-    select: { id: true, title: true, description: true, transcript: true },
+// ── Manual video addition ─────────────────────────────────────────────
+
+export async function addVideoByUrl(url: string) {
+  const userId = await getUserId();
+
+  const videoId = extractVideoId(url);
+  if (!videoId) throw new Error("Invalid YouTube video URL");
+
+  const existing = await prisma.video.findUnique({
+    where: { id: videoId },
+    select: { id: true, channelId: true },
   });
 
-  const { method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo } = await getUserTagExtractionConfig();
-
-  // LLM only — fail fast if extraction backend is not available
-  const available = await checkTagExtractionAvailable(method);
-  if (!available) {
-    throw new Error(
-      "Tag extraction backend is not available. Check your Ollama server or Gemini API key."
-    );
+  if (existing) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { channels: { connect: { id: existing.channelId } } },
+    });
+    revalidatePath("/videos");
+    revalidatePath("/channels/[channelId]");
+    return { success: true, videoId, alreadyExisted: true };
   }
 
-  let generated = 0;
-  for (const video of videos) {
-    const extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo);
-    if (!extracted || extracted.length === 0) continue;
+  const videoData = await fetchVideoById(videoId);
+  if (!videoData) throw new Error("Video not found on YouTube");
 
-    const tagNames = extracted;
+  const snippet = videoData.snippet;
+  const contentDetails = videoData.contentDetails;
+  const channelId = snippet.channelId;
 
-    await prisma.videoTag.deleteMany({ where: { videoId: video.id } });
+  const channelExists = await prisma.channel.findUnique({
+    where: { id: channelId },
+    select: { id: true },
+  });
 
-    for (const { name, score } of tagNames) {
-      const tag = await prisma.tag.upsert({
-        where: { name },
-        create: { name },
-        update: {},
-      });
+  if (!channelExists) {
+    const chData = await fetchChannelDetailsById(channelId);
+    const ch = chData.items?.[0];
+    if (ch) {
+      const uploadsPlaylistId = ch.contentDetails?.relatedPlaylists?.uploads;
+      const topicIds = ch.topicDetails?.topicIds as string[] | undefined;
+      const detectedCategories: string[] = [];
+      if (topicIds) {
+        for (const id of topicIds) {
+          const cat = getCategoryFromTopics([id]);
+          if (cat) detectedCategories.push(cat);
+        }
+      }
 
-      await prisma.videoTag.create({
+      await prisma.channel.create({
         data: {
-          videoId: video.id,
-          tagId: tag.id,
-          score,
+          id: ch.id,
+          title: ch.snippet.title,
+          thumbnail: ch.snippet.thumbnails?.medium?.url || ch.snippet.thumbnails?.default?.url,
+          uploadsPlaylistId,
+          subscriberCount: ch.statistics?.subscriberCount ? parseInt(ch.statistics.subscriberCount, 10) : null,
+          videoCount: ch.statistics?.videoCount ? parseInt(ch.statistics.videoCount, 10) : null,
         },
       });
-    }
 
-    generated++;
+      if (detectedCategories.length > 0) {
+        for (const name of detectedCategories) {
+          const cat = await prisma.category.upsert({
+            where: { name },
+            create: { name },
+            update: {},
+          });
+          await prisma.channel.update({
+            where: { id: ch.id },
+            data: { categories: { connect: { id: cat.id } } },
+          });
+        }
+      }
+    }
   }
 
-  return { processed: videos.length, generated };
+  await prisma.user.update({
+    where: { id: userId },
+    data: { channels: { connect: { id: channelId } } },
+  });
+
+  const catId = snippet.categoryId ? parseInt(snippet.categoryId, 10) : undefined;
+  const category = catId ? YOUTUBE_CATEGORY_MAP[catId] : undefined;
+
+  await prisma.video.create({
+    data: {
+      id: videoId,
+      title: snippet.title,
+      description: snippet.description,
+      thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url,
+      durationSec: parseDuration(contentDetails.duration),
+      publishedAt: new Date(snippet.publishedAt),
+      channelId,
+      category,
+    },
+  });
+
+  revalidatePath("/videos");
+  revalidatePath("/channels/[channelId]");
+  return { success: true, videoId, alreadyExisted: false };
+}
+
+export async function addVideoById(videoId: string) {
+  return addVideoByUrl(videoId);
 }
