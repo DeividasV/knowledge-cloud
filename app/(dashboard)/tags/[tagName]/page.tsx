@@ -23,12 +23,15 @@ import { cn } from "@/lib/utils";
 
 interface PageProps {
   params: Promise<{ tagName: string }>;
+  searchParams: Promise<{ [key: string]: string | undefined }>;
 }
 
-export default async function TagDetailPage({ params }: PageProps) {
+export default async function TagDetailPage({ params, searchParams }: PageProps) {
   const { tagName: rawTagName } = await params;
   const tagName = decodeURIComponent(rawTagName);
   const detail = await getTagDetailByName(tagName);
+
+  const returnUrl = `/tags/${encodeURIComponent(tagName)}`;
 
   if (!detail) notFound();
 
@@ -157,7 +160,7 @@ export default async function TagDetailPage({ params }: PageProps) {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {detail.videos.map((video) => (
-                <VideoCard key={video.id} video={video} />
+                <VideoCard key={video.id} video={video} returnUrl={returnUrl} />
               ))}
             </div>
           )}
@@ -232,6 +235,7 @@ function StatCard({
 
 function VideoCard({
   video,
+  returnUrl,
 }: {
   video: {
     id: string;
@@ -243,6 +247,7 @@ function VideoCard({
     score: number;
     status: string;
   };
+  returnUrl: string;
 }) {
   const durationText = video.durationSec
     ? `${Math.floor(video.durationSec / 60)}:${String(video.durationSec % 60).padStart(2, "0")}`
@@ -252,7 +257,7 @@ function VideoCard({
     <Card className="overflow-hidden group">
       <div className="relative">
         <Link
-          href={`/videos/${video.id}`}
+          href={`/videos/${video.id}?from=${encodeURIComponent(returnUrl)}`}
           className="block aspect-video bg-muted relative group/link"
         >
           {video.thumbnail ? (
@@ -278,7 +283,7 @@ function VideoCard({
       </div>
       <CardContent className="p-3 space-y-2">
         <div>
-          <Link href={`/videos/${video.id}`}>
+          <Link href={`/videos/${video.id}?from=${encodeURIComponent(returnUrl)}`}>
             <h3
               className="font-medium text-sm line-clamp-2 hover:text-primary transition-colors"
               title={video.title}

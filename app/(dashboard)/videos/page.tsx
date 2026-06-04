@@ -89,7 +89,14 @@ export default async function VideosPage({
     }
   }
 
-  function VideoList({ items }: { items: typeof videos }) {
+  // Build return URL for video detail back-navigation
+  const returnSearch = new URLSearchParams();
+  if (pageStr && pageStr !== "1") returnSearch.set("page", pageStr);
+  if (query) returnSearch.set("q", query);
+  if (statusFilter) returnSearch.set("status", statusFilter);
+  const returnUrl = `/videos${returnSearch.toString() ? "?" + returnSearch.toString() : ""}`;
+
+  function VideoList({ items, from }: { items: typeof videos; from: string }) {
     if (items.length === 0) {
       return (
         <div className="text-center py-12 text-muted-foreground">
@@ -103,7 +110,7 @@ export default async function VideosPage({
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {items.map((video) => (
             <Card key={video.id} className="overflow-hidden group">
-              <Link href={`/videos/${video.id}`} className="block aspect-video bg-muted relative group/link">
+              <Link href={`/videos/${video.id}?from=${encodeURIComponent(from)}`} className="block aspect-video bg-muted relative group/link">
                 {video.thumbnail ? (
                   <>
                     <img
@@ -131,7 +138,7 @@ export default async function VideosPage({
               </Link>
               <CardContent className="p-4 space-y-3">
                 <div>
-                  <Link href={`/videos/${video.id}`}>
+                  <Link href={`/videos/${video.id}?from=${encodeURIComponent(from)}`}>
                     <h3 className="font-medium text-sm line-clamp-2 hover:text-primary transition-colors" title={video.title}>
                       {video.title}
                     </h3>
@@ -187,19 +194,19 @@ export default async function VideosPage({
           <TabsTrigger value="not-interested">Not interested ({counts.NOT_INTERESTED})</TabsTrigger>
         </TabsList>
         <TabsContent value="all" className="mt-4">
-          <VideoList items={videos} />
+          <VideoList items={videos} from={returnUrl} />
         </TabsContent>
         <TabsContent value="unwatched" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
-          <FilteredVideos userId={userId} status="UNWATCHED" page={page} query={query} />
+          <FilteredVideos userId={userId} status="UNWATCHED" page={page} query={query} from={returnUrl} />
         </TabsContent>
         <TabsContent value="watched" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
-          <FilteredVideos userId={userId} status="WATCHED" page={page} query={query} />
+          <FilteredVideos userId={userId} status="WATCHED" page={page} query={query} from={returnUrl} />
         </TabsContent>
         <TabsContent value="not-interested" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
-          <FilteredVideos userId={userId} status="NOT_INTERESTED" page={page} query={query} />
+          <FilteredVideos userId={userId} status="NOT_INTERESTED" page={page} query={query} from={returnUrl} />
         </TabsContent>
       </Tabs>
     </div>
@@ -211,11 +218,13 @@ async function FilteredVideos({
   status,
   page,
   query,
+  from,
 }: {
   userId: string;
   status: VideoStatus;
   page: number;
   query?: string;
+  from: string;
 }) {
   const skip = (page - 1) * PAGE_SIZE;
 
@@ -273,7 +282,7 @@ async function FilteredVideos({
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {videos.map((video) => (
           <Card key={video.id} className="overflow-hidden group">
-            <Link href={`/videos/${video.id}`} className="block aspect-video bg-muted relative group/link">
+            <Link href={`/videos/${video.id}?from=${encodeURIComponent(from)}`} className="block aspect-video bg-muted relative group/link">
               {video.thumbnail ? (
                 <>
                   <img
@@ -299,7 +308,7 @@ async function FilteredVideos({
             </Link>
             <CardContent className="p-4 space-y-3">
               <div>
-                <Link href={`/videos/${video.id}`}>
+                <Link href={`/videos/${video.id}?from=${encodeURIComponent(from)}`}>
                   <h3 className="font-medium text-sm line-clamp-2 hover:text-primary transition-colors" title={video.title}>
                     {video.title}
                   </h3>

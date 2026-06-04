@@ -24,12 +24,21 @@ import { VideoTranscriptStatic } from "@/components/video-transcript-static";
 
 interface PageProps {
   params: Promise<{ videoId: string }>;
+  searchParams: Promise<{ from?: string }>;
 }
 
-export default async function VideoDetailPage({ params }: PageProps) {
+export default async function VideoDetailPage({ params, searchParams }: PageProps) {
   const session = await auth();
   const userId = session!.user!.id!;
   const { videoId } = await params;
+  const { from: returnUrl } = await searchParams;
+
+  const backHref = returnUrl || "/videos";
+  const backLabel = backHref.startsWith("/channels/")
+    ? "Back to channel"
+    : backHref.startsWith("/tags/")
+    ? "Back to tag"
+    : "Back to videos";
 
   const video = await prisma.video.findFirst({
     where: {
@@ -108,11 +117,11 @@ export default async function VideoDetailPage({ params }: PageProps) {
       {/* Back link */}
       <div>
         <Link
-          href="/videos"
+          href={backHref}
           className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors -ml-2 px-2 py-1 rounded-md hover:bg-muted"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to videos
+          {backLabel}
         </Link>
       </div>
 

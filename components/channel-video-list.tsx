@@ -45,8 +45,13 @@ interface ChannelVideoListProps {
   videos: VideoItem[];
   page: number;
   totalPages: number;
-
   query?: string;
+  returnUrl?: string;
+}
+
+function videoHref(videoId: string, returnUrl?: string) {
+  if (!returnUrl) return `/videos/${videoId}`;
+  return `/videos/${videoId}?from=${encodeURIComponent(returnUrl)}`;
 }
 
 export function ChannelVideoList({
@@ -55,6 +60,7 @@ export function ChannelVideoList({
   page,
   totalPages,
   query,
+  returnUrl,
 }: ChannelVideoListProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
@@ -178,7 +184,7 @@ export function ChannelVideoList({
               {/* Thumbnail with checkbox */}
               <div className="relative">
                 <Link
-                  href={`/videos/${video.id}`}
+                  href={videoHref(video.id, returnUrl)}
                   className="block aspect-video bg-muted relative group/link"
                 >
                   {video.thumbnail ? (
@@ -215,7 +221,7 @@ export function ChannelVideoList({
 
               <CardContent className="p-4 space-y-3">
                 <div>
-                  <Link href={`/videos/${video.id}`}>
+                  <Link href={videoHref(video.id, returnUrl)}>
                     <h3
                       className="font-medium text-sm line-clamp-2 hover:text-primary transition-colors"
                       title={video.title}

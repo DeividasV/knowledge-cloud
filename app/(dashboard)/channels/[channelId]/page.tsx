@@ -143,6 +143,14 @@ export default async function ChannelPage({
     missingTranscripts: missingTranscriptCount,
   };
 
+  // Build return URL for video detail back-navigation
+  const returnSearch = new URLSearchParams();
+  if (pageStr && pageStr !== "1") returnSearch.set("page", pageStr);
+  if (query) returnSearch.set("q", query);
+  if (statusFilter) returnSearch.set("status", statusFilter);
+  if (sizeStr && sizeStr !== "50") returnSearch.set("size", sizeStr);
+  const returnUrl = `/channels/${channelId}${returnSearch.toString() ? "?" + returnSearch.toString() : ""}`;
+
   const markAllAsWatched = markAllChannelVideosAsWatched.bind(null, channelId);
 
   return (
@@ -218,6 +226,7 @@ export default async function ChannelPage({
             page={page}
             totalPages={totalPages}
             query={query}
+            returnUrl={returnUrl}
           />
         </TabsContent>
 
@@ -230,6 +239,7 @@ export default async function ChannelPage({
             page={page}
             query={query}
             pageSize={pageSize}
+            returnUrl={returnUrl}
           />
         </TabsContent>
 
@@ -242,6 +252,7 @@ export default async function ChannelPage({
             page={page}
             query={query}
             pageSize={pageSize}
+            returnUrl={returnUrl}
           />
         </TabsContent>
 
@@ -254,6 +265,7 @@ export default async function ChannelPage({
             page={page}
             query={query}
             pageSize={pageSize}
+            returnUrl={returnUrl}
           />
         </TabsContent>
       </Tabs>
@@ -268,6 +280,7 @@ async function FilteredVideoList({
   page,
   query,
   pageSize,
+  returnUrl,
 }: {
   channelId: string;
   userId: string;
@@ -275,6 +288,7 @@ async function FilteredVideoList({
   page: number;
   query?: string;
   pageSize: number;
+  returnUrl: string;
 }) {
   const skip = (page - 1) * pageSize;
 
@@ -333,6 +347,7 @@ async function FilteredVideoList({
       page={page}
       totalPages={totalPages}
       query={query}
+      returnUrl={returnUrl}
     />
   );
 }
