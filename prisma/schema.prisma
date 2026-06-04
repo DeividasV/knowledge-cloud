@@ -90,8 +90,8 @@ model Video {
   thumbnail           String?
   durationSec         Int?
   publishedAt         DateTime
-  channelId           String
-  channel             Channel     @relation(fields: [channelId], references: [id])
+  channelId           String?
+  channel             Channel?    @relation(fields: [channelId], references: [id])
   userStates          UserVideo[]
   transcript          String?
   transcriptFetchedAt DateTime?
@@ -117,14 +117,15 @@ model VideoTag {
 }
 
 model UserVideo {
-  id          String   @id @default(cuid())
-  userId      String
-  videoId     String
-  status      String   @default("UNWATCHED")
-  progressSec Int      @default(0)
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  id               String   @id @default(cuid())
+  userId           String
+  videoId          String
+  status           String   @default("UNWATCHED")
+  progressSec      Int      @default(0)
+  addedStandalone  Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video            Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@unique([userId, videoId])
 }

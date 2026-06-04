@@ -175,7 +175,11 @@ export default async function TagDetailPage({ params, searchParams }: PageProps)
                   href={`/videos/${video.id}?from=${encodeURIComponent(returnUrl)}`}
                   subtitle={
                     <>
-                      {video.channel.title}
+                      {video.channel?.title ?? (
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">
+                          Standalone
+                        </span>
+                      )}
                       · {new Date(video.publishedAt).toLocaleDateString()}
                       {video.durationSec ? (
                         <span className="ml-2">

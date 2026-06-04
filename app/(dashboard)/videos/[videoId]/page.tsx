@@ -21,6 +21,7 @@ import { VideoStatus } from "@/lib/types";
 import { generateVideoTags } from "@/app/actions/videos";
 import { TagReportClient } from "@/components/tag-report-client";
 import { VideoTranscriptStatic } from "@/components/video-transcript-static";
+import { userVideosWhere } from "@/lib/video-access";
 
 interface PageProps {
   params: Promise<{ videoId: string }>;
@@ -43,7 +44,7 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
   const video = await prisma.video.findFirst({
     where: {
       id: videoId,
-      channel: { users: { some: { id: userId } } },
+      ...userVideosWhere(userId),
     },
     include: {
       channel: true,
@@ -85,24 +86,17 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
     score: vt.score,
   }));
 
-  // Count other videos with same tag (from user's subscribed channels)
+  // Count other videos with same tag (from user's visible videos)
   const tagIds = tags.map((t) => t.id);
   let tagCounts: Map<string, number> = new Map();
 
   if (tagIds.length > 0) {
-    // Fast path: get user's channel IDs first, then filter videoTag directly
-    const userChannels = await prisma.channel.findMany({
-      where: { users: { some: { id: userId } } },
-      select: { id: true },
-    });
-    const channelIds = userChannels.map((c) => c.id);
-
     const tagCountRows = await prisma.videoTag.groupBy({
       by: ["tagId"],
       where: {
         tagId: { in: tagIds },
         videoId: { not: videoId },
-        video: { channelId: { in: channelIds } },
+        video: userVideosWhere(userId),
       },
       _count: { videoId: true },
     });
@@ -160,13 +154,20 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
           <div>
             <h1 className="text-xl font-bold leading-snug">{video.title}</h1>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground mt-2">
-              <Link
-                href={`/channels/${video.channel.id}`}
-                className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
-              >
-                <User className="h-3.5 w-3.5" />
-                {video.channel.title}
-              </Link>
+              {video.channel ? (
+                <Link
+                  href={`/channels/${video.channel.id}`}
+                  className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                >
+                  <User className="h-3.5 w-3.5" />
+                  {video.channel.title}
+                </Link>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
+                  <User className="h-3.5 w-3.5" />
+                  Standalone
+                </span>
+              )}
               <span className="inline-flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />
                 {publishedText}

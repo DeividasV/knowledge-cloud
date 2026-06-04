@@ -24,6 +24,7 @@ import { SyncSettings } from "@/components/sync-settings";
 import { DurationSettings } from "@/components/duration-settings";
 import { AddChannelForm } from "@/components/add-channel-form";
 import { AddVideoForm } from "@/components/add-video-form";
+import { userVideosWhere } from "@/lib/video-access";
 import {
   RefreshCw,
   FileText,
@@ -59,7 +60,7 @@ export default async function SettingsPage() {
 
   const videosWithoutTranscript = await prisma.video.findMany({
     where: {
-      channel: { users: { some: { id: userId } } },
+      ...userVideosWhere(userId),
       transcript: null,
     },
     select: { id: true },

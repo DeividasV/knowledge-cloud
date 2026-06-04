@@ -6,18 +6,37 @@ import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
 import { AddVideoForm } from "@/components/add-video-form";
+import { userVideosWhere } from "@/lib/video-access";
 
 const PAGE_SIZE = 50;
 
 export default async function VideosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; status?: string; q?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    status?: string;
+    tab?: string;
+    q?: string;
+  }>;
 }) {
   const session = await auth();
   const userId = session!.user!.id!;
 
-  const { page: pageStr, status: statusFilter, q: query } = await searchParams;
+  const {
+    page: pageStr,
+    status: statusLegacy,
+    tab: tabRaw,
+    q: query,
+  } = await searchParams;
+
+  // Map legacy status param to tab for backward compat
+  const tab =
+    tabRaw ||
+    (statusLegacy && ["UNWATCHED", "WATCHED", "NOT_INTERESTED"].includes(statusLegacy)
+      ? statusLegacy.toLowerCase().replace("_", "-")
+      : "all");
+
   const page = Math.max(1, parseInt(pageStr || "1", 10));
   const skip = (page - 1) * PAGE_SIZE;
 
@@ -27,24 +46,37 @@ export default async function VideosPage({
       }
     : {};
 
-  const statusWhere =
-    statusFilter && ["UNWATCHED", "WATCHED", "NOT_INTERESTED"].includes(statusFilter)
-      ? statusFilter
-      : undefined;
+  const isStandaloneTab = tab === "standalone";
 
-  const baseWhere = {
-    channel: { users: { some: { id: userId } } },
-    ...searchWhere,
-    ...(statusWhere
-      ? {
-          userStates: {
-            some: { userId, status: statusWhere },
-          },
-        }
-      : {}),
-  };
+  const baseWhere = isStandaloneTab
+    ? {
+        ...userVideosWhere(userId),
+        ...searchWhere,
+        channelId: null as string | null,
+      }
+    : {
+        ...userVideosWhere(userId),
+        ...searchWhere,
+        ...(tab === "unwatched"
+          ? {
+              NOT: {
+                userStates: {
+                  some: { userId, status: { in: ["WATCHING", "WATCHED", "NOT_INTERESTED"] } },
+                },
+              },
+            }
+          : tab === "watched"
+          ? {
+              userStates: { some: { userId, status: "WATCHED" } },
+            }
+          : tab === "not-interested"
+          ? {
+              userStates: { some: { userId, status: "NOT_INTERESTED" } },
+            }
+          : {}),
+      };
 
-  const [totalVideos, videos] = await Promise.all([
+  const [totalVideos, videos, standaloneCount] = await Promise.all([
     prisma.video.count({ where: baseWhere }),
     prisma.video.findMany({
       where: baseWhere,
@@ -60,6 +92,12 @@ export default async function VideosPage({
         userStates: {
           where: { userId },
         },
+      },
+    }),
+    prisma.video.count({
+      where: {
+        ...userVideosWhere(userId),
+        channelId: null,
       },
     }),
   ]);
@@ -88,7 +126,7 @@ export default async function VideosPage({
   const returnSearch = new URLSearchParams();
   if (pageStr && pageStr !== "1") returnSearch.set("page", pageStr);
   if (query) returnSearch.set("q", query);
-  if (statusFilter) returnSearch.set("status", statusFilter);
+  if (tab && tab !== "all") returnSearch.set("tab", tab);
   const returnUrl = `/videos${returnSearch.toString() ? "?" + returnSearch.toString() : ""}`;
 
   function VideoList({ items, from }: { items: typeof videos; from: string }) {
@@ -123,7 +161,11 @@ export default async function VideosPage({
               href={`/videos/${video.id}?from=${encodeURIComponent(from)}`}
               subtitle={
                 <>
-                  {video.channel.title}
+                  {video.channel?.title ?? (
+                    <span className="text-amber-600 dark:text-amber-400 font-medium">
+                      Standalone
+                    </span>
+                  )}
                   {video.category ? ` · ${video.category}` : ""}
                   · {new Date(video.publishedAt).toLocaleDateString()}
                   {video.durationSec ? (
@@ -147,19 +189,20 @@ export default async function VideosPage({
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Videos</h1>
         <p className="text-muted-foreground mt-1">
-          All videos from your subscribed channels. ({totalVideos} total)
+          All videos from your subscribed channels and standalone additions. ({totalVideos} total)
         </p>
       </div>
 
       <AddVideoForm />
       <SearchInput placeholder="Search videos by title..." />
 
-      <Tabs defaultValue="all">
+      <Tabs defaultValue={tab}>
         <TabsList>
           <TabsTrigger value="all">All ({totalVideos})</TabsTrigger>
           <TabsTrigger value="unwatched">Unwatched ({counts.UNWATCHED})</TabsTrigger>
           <TabsTrigger value="watched">Watched ({counts.WATCHED})</TabsTrigger>
           <TabsTrigger value="not-interested">Not interested ({counts.NOT_INTERESTED})</TabsTrigger>
+          <TabsTrigger value="standalone">Standalone ({standaloneCount})</TabsTrigger>
         </TabsList>
         <TabsContent value="all" className="mt-4">
           <VideoList items={videos} from={returnUrl} />
@@ -175,6 +218,9 @@ export default async function VideosPage({
         <TabsContent value="not-interested" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideos userId={userId} status="NOT_INTERESTED" page={page} query={query} from={returnUrl} />
+        </TabsContent>
+        <TabsContent value="standalone" className="mt-4">
+          <VideoList items={videos} from={returnUrl} />
         </TabsContent>
       </Tabs>
     </div>
@@ -203,7 +249,7 @@ async function FilteredVideos({
   const statusFilter =
     status === "UNWATCHED"
       ? {
-          channel: { users: { some: { id: userId } } },
+          ...userVideosWhere(userId),
           ...searchWhere,
           NOT: {
             userStates: {
@@ -212,7 +258,7 @@ async function FilteredVideos({
           },
         }
       : {
-          channel: { users: { some: { id: userId } } },
+          ...userVideosWhere(userId),
           ...searchWhere,
           userStates: { some: { userId, status } },
         };
@@ -268,7 +314,11 @@ async function FilteredVideos({
             href={`/videos/${video.id}?from=${encodeURIComponent(from)}`}
             subtitle={
               <>
-                {video.channel.title}
+                {video.channel?.title ?? (
+                  <span className="text-amber-600 dark:text-amber-400 font-medium">
+                    Standalone
+                  </span>
+                )}
                 {video.category ? ` · ${video.category}` : ""}
                 · {new Date(video.publishedAt).toLocaleDateString()}
                 {video.durationSec ? (

@@ -17,6 +17,7 @@ import {
   getCategoryFromTopics,
   YOUTUBE_CATEGORY_MAP,
 } from "@/lib/youtube";
+import { userVideosWhere } from "@/lib/video-access";
 
 async function getUserId(): Promise<string> {
   const session = await auth();
@@ -145,7 +146,7 @@ export async function getVideoById(videoId: string) {
   const video = await prisma.video.findFirst({
     where: {
       id: videoId,
-      channel: { users: { some: { id: userId } } },
+      ...userVideosWhere(userId),
     },
     include: {
       channel: true,
@@ -166,7 +167,7 @@ export async function getRecentVideos(limit = 10) {
   const userId = await getUserId();
 
   const videos = await prisma.video.findMany({
-    where: { channel: { users: { some: { id: userId } } } },
+    where: userVideosWhere(userId),
     orderBy: { publishedAt: "desc" },
     take: limit,
     include: {
@@ -192,7 +193,7 @@ export async function getDashboardStats() {
       where: { users: { some: { id: userId } } },
     }),
     prisma.video.count({
-      where: { channel: { users: { some: { id: userId } } } },
+      where: userVideosWhere(userId),
     }),
     prisma.userVideo.groupBy({
       by: ["status"],
@@ -201,7 +202,7 @@ export async function getDashboardStats() {
     }),
     prisma.video.count({
       where: {
-        channel: { users: { some: { id: userId } } },
+        ...userVideosWhere(userId),
         transcript: { not: null },
       },
     }),
@@ -299,11 +300,11 @@ export async function fetchAndStoreTranscript(videoId: string) {
 }
 
 export async function getTranscriptStats() {
-  await getUserId();
+  const userId = await getUserId();
 
   const [withTranscript, withoutTranscript] = await Promise.all([
-    prisma.video.count({ where: { transcript: { not: null } } }),
-    prisma.video.count({ where: { transcript: null } }),
+    prisma.video.count({ where: { ...userVideosWhere(userId), transcript: { not: null } } }),
+    prisma.video.count({ where: { ...userVideosWhere(userId), transcript: null } }),
   ]);
 
   return { withTranscript, withoutTranscript };
@@ -445,10 +446,11 @@ export async function generateVideoTags(videoId: string) {
 }
 
 export async function generateTagsForUntagged(limit = 100) {
-  await getUserId();
+  const userId = await getUserId();
 
   const untaggedVideos = await prisma.video.findMany({
     where: {
+      ...userVideosWhere(userId),
       videoTags: { none: {} },
       OR: [
         { transcript: { not: null } },
@@ -506,10 +508,11 @@ export async function generateTagsForUntagged(limit = 100) {
 }
 
 export async function generateTagsForAll(limit = 100) {
-  await getUserId();
+  const userId = await getUserId();
 
   const videos = await prisma.video.findMany({
     where: {
+      ...userVideosWhere(userId),
       OR: [
         { transcript: { not: null } },
         { description: { not: null } },
@@ -732,9 +735,7 @@ export async function getTagScoreSummary(): Promise<{
 
   const videoTags = await prisma.videoTag.findMany({
     where: {
-      video: {
-        channel: { users: { some: { id: userId } } },
-      },
+      video: userVideosWhere(userId),
     },
     select: {
       score: true,
@@ -776,9 +777,7 @@ export async function getTopTagsWithWatchStats(limit = 10): Promise<{
 
   const videoTags = await prisma.videoTag.findMany({
     where: {
-      video: {
-        channel: { users: { some: { id: userId } } },
-      },
+      video: userVideosWhere(userId),
     },
     select: {
       score: true,
@@ -985,9 +984,9 @@ export async function getChannelUntaggedVideoIds(channelId: string) {
 }
 
 export async function getUntaggedVideoIds(limit = 100) {
-  await getUserId();
+  const userId = await getUserId();
   const videos = await prisma.video.findMany({
-    where: { videoTags: { none: {} } },
+    where: { ...userVideosWhere(userId), videoTags: { none: {} } },
     select: { id: true },
     take: limit,
     orderBy: { publishedAt: "desc" },
@@ -996,8 +995,9 @@ export async function getUntaggedVideoIds(limit = 100) {
 }
 
 export async function getAllVideoIds(limit = 100) {
-  await getUserId();
+  const userId = await getUserId();
   const videos = await prisma.video.findMany({
+    where: userVideosWhere(userId),
     select: { id: true },
     take: limit,
     orderBy: { publishedAt: "desc" },
@@ -1022,7 +1022,7 @@ export async function generateTagsBatch(videoIds: string[]) {
 
 // ── Manual video addition ─────────────────────────────────────────────
 
-export async function addVideoByUrl(url: string) {
+export async function addVideoByUrl(url: string, standalone = false) {
   const userId = await getUserId();
 
   const videoId = extractVideoId(url);
@@ -1034,10 +1034,26 @@ export async function addVideoByUrl(url: string) {
   });
 
   if (existing) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { channels: { connect: { id: existing.channelId } } },
-    });
+    if (standalone) {
+      // Mark as standalone for this user
+      await prisma.userVideo.upsert({
+        where: { userId_videoId: { userId, videoId: existing.id } },
+        update: { addedStandalone: true },
+        create: {
+          userId,
+          videoId: existing.id,
+          status: "UNWATCHED",
+          progressSec: 0,
+          addedStandalone: true,
+        },
+      });
+    } else if (existing.channelId) {
+      // Link user to the video's channel
+      await prisma.user.update({
+        where: { id: userId },
+        data: { channels: { connect: { id: existing.channelId } } },
+      });
+    }
     revalidatePath("/videos");
     revalidatePath("/channels/[channelId]");
     return { success: true, videoId, alreadyExisted: true };
@@ -1050,6 +1066,39 @@ export async function addVideoByUrl(url: string) {
   const contentDetails = videoData.contentDetails;
   const channelId = snippet.channelId;
 
+  const catId = snippet.categoryId ? parseInt(snippet.categoryId, 10) : undefined;
+  const category = catId ? YOUTUBE_CATEGORY_MAP[catId] : undefined;
+
+  if (standalone) {
+    // Create standalone video (no channel link)
+    await prisma.video.create({
+      data: {
+        id: videoId,
+        title: snippet.title,
+        description: snippet.description,
+        thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url,
+        durationSec: parseDuration(contentDetails.duration),
+        publishedAt: new Date(snippet.publishedAt),
+        channelId: null,
+        category,
+      },
+    });
+
+    await prisma.userVideo.create({
+      data: {
+        userId,
+        videoId,
+        status: "UNWATCHED",
+        progressSec: 0,
+        addedStandalone: true,
+      },
+    });
+
+    revalidatePath("/videos");
+    return { success: true, videoId, alreadyExisted: false };
+  }
+
+  // Non-standalone: create/link channel as before
   const channelExists = await prisma.channel.findUnique({
     where: { id: channelId },
     select: { id: true },
@@ -1101,9 +1150,6 @@ export async function addVideoByUrl(url: string) {
     data: { channels: { connect: { id: channelId } } },
   });
 
-  const catId = snippet.categoryId ? parseInt(snippet.categoryId, 10) : undefined;
-  const category = catId ? YOUTUBE_CATEGORY_MAP[catId] : undefined;
-
   await prisma.video.create({
     data: {
       id: videoId,
@@ -1122,6 +1168,6 @@ export async function addVideoByUrl(url: string) {
   return { success: true, videoId, alreadyExisted: false };
 }
 
-export async function addVideoById(videoId: string) {
-  return addVideoByUrl(videoId);
+export async function addVideoById(videoId: string, standalone = false) {
+  return addVideoByUrl(videoId, standalone);
 }

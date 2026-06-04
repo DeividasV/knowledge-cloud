@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { userVideosWhere } from "@/lib/video-access";
 
 export interface TagVideoItem {
   id: string;
@@ -9,7 +10,7 @@ export interface TagVideoItem {
   thumbnail: string | null;
   publishedAt: Date;
   durationSec: number | null;
-  channel: { id: string; title: string };
+  channel: { id: string; title: string } | null;
   score: number;
   status: string;
   transcript: string | null;
@@ -52,13 +53,11 @@ export async function getTagDetailByName(tagName: string): Promise<TagDetail | n
   });
   if (!tag) return null;
 
-  // 2. Get all videoTags for this tag from user's channels
+  // 2. Get all videoTags for this tag from user's visible videos
   const videoTags = await prisma.videoTag.findMany({
     where: {
       tagId: tag.id,
-      video: {
-        channel: { users: { some: { id: userId } } },
-      },
+      video: userVideosWhere(userId),
     },
     select: {
       score: true,
@@ -166,9 +165,7 @@ export async function getTagDetailByName(tagName: string): Promise<TagDetail | n
         by: ["tagId"],
         where: {
           tagId: { in: siblingTagIds },
-          video: {
-            channel: { users: { some: { id: userId } } },
-          },
+          video: userVideosWhere(userId),
         },
         _count: { videoId: true },
       });
@@ -234,12 +231,10 @@ export async function getAllTags(options: {
   if (!session?.user?.id) throw new Error("Not authenticated");
   const userId = session.user.id;
 
-  // Get all videoTags for user's channels
+  // Get all videoTags for user's visible videos
   const videoTags = await prisma.videoTag.findMany({
     where: {
-      video: {
-        channel: { users: { some: { id: userId } } },
-      },
+      video: userVideosWhere(userId),
     },
     select: {
       score: true,
