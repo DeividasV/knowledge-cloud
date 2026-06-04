@@ -183,8 +183,12 @@ export async function extractTagsWithGemini(
 
       const rawText = candidate?.content?.parts?.[0]?.text;
       if (!rawText) {
-        console.error("[Gemini] No text in response. Candidate:", (JSON.stringify(candidate) ?? "undefined").slice(0, 500));
-        return null;
+        const reason = candidate?.finishReason || "UNKNOWN";
+        const candidatePreview = (JSON.stringify(candidate) ?? "undefined").slice(0, 400);
+        throw new Error(
+          `Gemini returned empty content (finishReason=${reason}). ` +
+          `Candidate: ${candidatePreview}`
+        );
       }
 
       const cleaned = rawText
@@ -196,13 +200,11 @@ export async function extractTagsWithGemini(
       try {
         parsed = JSON.parse(cleaned);
       } catch {
-        console.error("[Gemini] Unparseable JSON:", cleaned.slice(0, 500));
-        return null;
+        throw new Error(`Gemini returned unparseable JSON: ${cleaned.slice(0, 400)}`);
       }
 
       if (!Array.isArray(parsed.tags)) {
-        console.error("[Gemini] Unexpected structure:", JSON.stringify(parsed).slice(0, 500));
-        return null;
+        throw new Error(`Gemini returned unexpected structure: ${JSON.stringify(parsed).slice(0, 400)}`);
       }
 
       const beforeFilter = parsed.tags.length;
