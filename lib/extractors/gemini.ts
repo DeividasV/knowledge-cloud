@@ -155,25 +155,25 @@ export async function extractTagsWithGemini(
         const text = await res.text().catch(() => "");
         const isCreditError = text.toLowerCase().includes("credits are depleted");
         if (isCreditError) {
-          console.error("[Gemini] Billing error: prepayment credits depleted. Visit https://ai.studio/projects to add credits.");
-        } else {
-          console.error(`[Gemini] HTTP ${res.status}: ${text.slice(0, 500)}`);
+          throw new Error(
+            "Gemini API credits depleted. Add prepaid credits at https://ai.google.dev/pricing or switch to Ollama in Settings."
+          );
         }
+        console.error(`[Gemini] HTTP ${res.status}: ${text.slice(0, 500)}`);
         // Rate limit or server error — retry
-        if ((res.status === 429 && !isCreditError) || res.status >= 500) {
+        if (res.status === 429 || res.status >= 500) {
           if (attempt < maxRetries - 1) {
             await sleep(1000 * Math.pow(2, attempt));
             continue;
           }
         }
-        return null;
+        throw new Error(`Gemini API returned HTTP ${res.status}. ${text.slice(0, 200)}`);
       }
 
       const data = (await res.json()) as GeminiResponse;
 
       if (data.error) {
-        console.error(`[Gemini] API error ${data.error.code}: ${data.error.message}`);
-        return null;
+        throw new Error(`Gemini API error ${data.error.code}: ${data.error.message}`);
       }
 
       const candidate = data.candidates?.[0];

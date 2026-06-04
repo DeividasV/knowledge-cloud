@@ -68,6 +68,42 @@ export async function deleteVideoTags(videoIds: string[]) {
   return { deleted: result.count };
 }
 
+export async function deleteTagsForVideosWithRussianTags() {
+  await getUserId();
+
+  // Find all video IDs that have at least one tag containing Cyrillic characters
+  const videoTags = await prisma.videoTag.findMany({
+    where: {
+      tag: {
+        name: { contains: "а" }, // Prisma doesn't support regex; we filter in JS
+      },
+    },
+    select: { videoId: true, tag: { select: { name: true } } },
+  });
+
+  const cyrillicRegex = /[\u0400-\u04FF\u0500-\u052F\u2DE0-\u2DFF\uA640-\uA69F]/u;
+  const affectedVideoIds = Array.from(
+    new Set(
+      videoTags
+        .filter((vt) => cyrillicRegex.test(vt.tag.name))
+        .map((vt) => vt.videoId)
+    )
+  );
+
+  if (affectedVideoIds.length === 0) {
+    return { deleted: 0, affectedVideos: 0 };
+  }
+
+  const result = await prisma.videoTag.deleteMany({
+    where: { videoId: { in: affectedVideoIds } },
+  });
+
+  revalidatePath("/videos");
+  revalidatePath("/channels/[channelId]");
+  revalidatePath("/videos/[videoId]");
+  return { deleted: result.count, affectedVideos: affectedVideoIds.length };
+}
+
 export async function markAllChannelVideosAsWatched(channelId: string) {
   const userId = await getUserId();
 
@@ -353,13 +389,26 @@ export async function generateVideoTags(videoId: string) {
   const { method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo } = await getUserTagExtractionConfig();
 
   // LLM-powered extraction
-  const extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo);
+  let extracted;
+  try {
+    extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo);
+  } catch (err: any) {
+    // Propagate specific errors (e.g. credit depletion) with context
+    if (err?.message?.includes("credits depleted")) {
+      throw err;
+    }
+    const backend = method === "gemini" ? "Gemini" : "Ollama";
+    throw new Error(
+      `Tag extraction failed via ${backend}: ${err?.message || "Unknown error"}`
+    );
+  }
+
   if (!extracted || extracted.length === 0) {
     const backend = method === "gemini" ? "Gemini" : "Ollama";
     throw new Error(
-      `Tag extraction failed via ${backend}. ` +
+      `Tag extraction via ${backend} returned no tags. ` +
         (method === "gemini"
-          ? "Check your GEMINI_API_KEY and billing credits."
+          ? "The model may have refused to process this content, or the transcript was too short."
           : "Make sure Ollama is running and the model is loaded. The video transcript may be too long for the 180s timeout.")
     );
   }
