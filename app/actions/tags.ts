@@ -12,6 +12,11 @@ export interface TagVideoItem {
   channel: { id: string; title: string };
   score: number;
   status: string;
+  transcript: string | null;
+  videoTags: Array<{
+    tag: { id: string; name: string };
+    score: number;
+  }>;
 }
 
 export interface TagSibling {
@@ -64,10 +69,18 @@ export async function getTagDetailByName(tagName: string): Promise<TagDetail | n
           thumbnail: true,
           publishedAt: true,
           durationSec: true,
+          transcript: true,
           channel: { select: { id: true, title: true } },
           userStates: {
             where: { userId },
             select: { status: true },
+          },
+          videoTags: {
+            select: {
+              score: true,
+              tag: { select: { id: true, name: true } },
+            },
+            orderBy: { score: "desc" },
           },
         },
       },
@@ -106,6 +119,8 @@ export async function getTagDetailByName(tagName: string): Promise<TagDetail | n
       channel: vt.video.channel,
       score: vt.score,
       status,
+      transcript: vt.video.transcript,
+      videoTags: vt.video.videoTags,
     };
   });
 

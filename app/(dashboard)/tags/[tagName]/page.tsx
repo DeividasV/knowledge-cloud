@@ -4,7 +4,6 @@ import { getTagDetailByName } from "@/app/actions/tags";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
   Tag,
@@ -13,11 +12,8 @@ import {
   EyeOff,
   XCircle,
   Hash,
-  ExternalLink,
-  Calendar,
-  Clock,
 } from "lucide-react";
-import { VideoQuickToggle } from "@/components/video-quick-toggle";
+import { VideoCard } from "@/components/video-card";
 import { VideoStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -160,7 +156,39 @@ export default async function TagDetailPage({ params, searchParams }: PageProps)
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {detail.videos.map((video) => (
-                <VideoCard key={video.id} video={video} returnUrl={returnUrl} />
+                <VideoCard
+                  key={video.id}
+                  video={{
+                    id: video.id,
+                    title: video.title,
+                    thumbnail: video.thumbnail,
+                    publishedAt: video.publishedAt,
+                    durationSec: video.durationSec,
+                    transcript: video.transcript,
+                    videoTags: video.videoTags.map((vt) => ({
+                      id: vt.tag.id,
+                      name: vt.tag.name,
+                      score: vt.score,
+                    })),
+                    status: video.status as VideoStatus,
+                  }}
+                  href={`/videos/${video.id}?from=${encodeURIComponent(returnUrl)}`}
+                  subtitle={
+                    <>
+                      {video.channel.title}
+                      · {new Date(video.publishedAt).toLocaleDateString()}
+                      {video.durationSec ? (
+                        <span className="ml-2">
+                          {Math.floor(video.durationSec / 60)}:
+                          {String(video.durationSec % 60).padStart(2, "0")}
+                        </span>
+                      ) : null}
+                      <span className="ml-2 text-muted-foreground/70">
+                        score {video.score.toFixed(2)}
+                      </span>
+                    </>
+                  }
+                />
               ))}
             </div>
           )}
@@ -227,93 +255,6 @@ function StatCard({
         <div className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center justify-center gap-1 mt-0.5">
           <Icon className="h-3 w-3" />
           {label}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function VideoCard({
-  video,
-  returnUrl,
-}: {
-  video: {
-    id: string;
-    title: string;
-    thumbnail: string | null;
-    publishedAt: Date;
-    durationSec: number | null;
-    channel: { id: string; title: string };
-    score: number;
-    status: string;
-  };
-  returnUrl: string;
-}) {
-  const durationText = video.durationSec
-    ? `${Math.floor(video.durationSec / 60)}:${String(video.durationSec % 60).padStart(2, "0")}`
-    : null;
-
-  return (
-    <Card className="overflow-hidden group">
-      <div className="relative">
-        <Link
-          href={`/videos/${video.id}?from=${encodeURIComponent(returnUrl)}`}
-          className="block aspect-video bg-muted relative group/link"
-        >
-          {video.thumbnail ? (
-            <>
-              <img
-                src={video.thumbnail}
-                alt={video.title}
-                className="h-full w-full object-cover transition-transform group-hover/link:scale-105"
-              />
-              <div className="absolute inset-0 bg-black/0 group-hover/link:bg-black/20 transition-colors flex items-center justify-center">
-                <ExternalLink className="h-5 w-5 text-white opacity-0 group-hover/link:opacity-100 transition-opacity" />
-              </div>
-            </>
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              <PlaySquare className="h-8 w-8 text-muted-foreground" />
-            </div>
-          )}
-        </Link>
-        <div className="absolute top-2 right-2">
-          <VideoQuickToggle videoId={video.id} currentStatus={video.status as VideoStatus} />
-        </div>
-      </div>
-      <CardContent className="p-3 space-y-2">
-        <div>
-          <Link href={`/videos/${video.id}?from=${encodeURIComponent(returnUrl)}`}>
-            <h3
-              className="font-medium text-sm line-clamp-2 hover:text-primary transition-colors"
-              title={video.title}
-            >
-              {video.title}
-            </h3>
-          </Link>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground mt-1">
-            <Link
-              href={`/channels/${video.channel.id}`}
-              className="hover:text-foreground transition-colors truncate max-w-[120px]"
-            >
-              {video.channel.title}
-            </Link>
-            <span className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              {new Date(video.publishedAt).toLocaleDateString()}
-            </span>
-            {durationText && (
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {durationText}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center justify-between">
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">
-            score {video.score.toFixed(2)}
-          </Badge>
         </div>
       </CardContent>
     </Card>

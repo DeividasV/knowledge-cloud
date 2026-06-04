@@ -1,13 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlaySquare, ArrowRight } from "lucide-react";
-import Link from "next/link";
-import { VideoStatusToggle } from "@/components/video-status-toggle";
-import { VideoQuickToggle } from "@/components/video-quick-toggle";
-import { VideoTranscript } from "@/components/video-transcript";
-import { VideoTags } from "@/components/video-tags";
+import { VideoCard } from "@/components/video-card";
 import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
@@ -109,65 +103,37 @@ export default async function VideosPage({
       <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {items.map((video) => (
-            <Card key={video.id} className="overflow-hidden group">
-              <Link href={`/videos/${video.id}?from=${encodeURIComponent(from)}`} className="block aspect-video bg-muted relative group/link">
-                {video.thumbnail ? (
-                  <>
-                    <img
-                      src={video.thumbnail}
-                      alt={video.title}
-                      className="h-full w-full object-cover transition-transform group-hover/link:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-black/0 group-hover/link:bg-black/20 transition-colors flex items-center justify-center">
-                      <ArrowRight className="h-6 w-6 text-white opacity-0 group-hover/link:opacity-100 transition-opacity" />
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex h-full items-center justify-center">
-                    <PlaySquare className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                )}
-                <div className="absolute top-2 right-2">
-                  <VideoQuickToggle
-                    videoId={video.id}
-                    currentStatus={
-                      (video.userStates[0]?.status as VideoStatus) || "UNWATCHED"
-                    }
-                  />
-                </div>
-              </Link>
-              <CardContent className="p-4 space-y-3">
-                <div>
-                  <Link href={`/videos/${video.id}?from=${encodeURIComponent(from)}`}>
-                    <h3 className="font-medium text-sm line-clamp-2 hover:text-primary transition-colors" title={video.title}>
-                      {video.title}
-                    </h3>
-                  </Link>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {video.channel.title}
-                    {video.category ? ` · ${video.category}` : ""}
-                    · {new Date(video.publishedAt).toLocaleDateString()}
-                    {video.durationSec ? (
-                      <span className="ml-2">
-                        {Math.floor(video.durationSec / 60)}:
-                        {String(video.durationSec % 60).padStart(2, "0")}
-                      </span>
-                    ) : null}
-                  </p>
-                </div>
-                <VideoStatusToggle
-                  videoId={video.id}
-                  currentStatus={
-                    (video.userStates[0]?.status as VideoStatus) || "UNWATCHED"
-                  }
-                />
-                <VideoTags videoId={video.id} tags={video.videoTags.map((vt) => ({ id: vt.tag.id, name: vt.tag.name, score: vt.score }))} />
-                <VideoTranscript
-                  videoId={video.id}
-                  transcript={video.transcript}
-                />
-              </CardContent>
-            </Card>
+            <VideoCard
+              key={video.id}
+              video={{
+                id: video.id,
+                title: video.title,
+                thumbnail: video.thumbnail,
+                publishedAt: video.publishedAt,
+                durationSec: video.durationSec,
+                transcript: video.transcript,
+                videoTags: video.videoTags.map((vt) => ({
+                  id: vt.tag.id,
+                  name: vt.tag.name,
+                  score: vt.score,
+                })),
+                status: (video.userStates[0]?.status as VideoStatus) || "UNWATCHED",
+              }}
+              href={`/videos/${video.id}?from=${encodeURIComponent(from)}`}
+              subtitle={
+                <>
+                  {video.channel.title}
+                  {video.category ? ` · ${video.category}` : ""}
+                  · {new Date(video.publishedAt).toLocaleDateString()}
+                  {video.durationSec ? (
+                    <span className="ml-2">
+                      {Math.floor(video.durationSec / 60)}:
+                      {String(video.durationSec % 60).padStart(2, "0")}
+                    </span>
+                  ) : null}
+                </>
+              }
+            />
           ))}
         </div>
         <Pagination page={page} totalPages={totalPages} basePath="/videos" />
@@ -281,61 +247,37 @@ async function FilteredVideos({
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {videos.map((video) => (
-          <Card key={video.id} className="overflow-hidden group">
-            <Link href={`/videos/${video.id}?from=${encodeURIComponent(from)}`} className="block aspect-video bg-muted relative group/link">
-              {video.thumbnail ? (
-                <>
-                  <img
-                    src={video.thumbnail}
-                    alt={video.title}
-                    className="h-full w-full object-cover transition-transform group-hover/link:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover/link:bg-black/20 transition-colors flex items-center justify-center">
-                    <ArrowRight className="h-6 w-6 text-white opacity-0 group-hover/link:opacity-100 transition-opacity" />
-                  </div>
-                </>
-              ) : (
-                <div className="flex h-full items-center justify-center">
-                  <PlaySquare className="h-8 w-8 text-muted-foreground" />
-                </div>
-              )}
-              <div className="absolute top-2 right-2">
-                <VideoQuickToggle
-                  videoId={video.id}
-                  currentStatus={status}
-                />
-              </div>
-            </Link>
-            <CardContent className="p-4 space-y-3">
-              <div>
-                <Link href={`/videos/${video.id}?from=${encodeURIComponent(from)}`}>
-                  <h3 className="font-medium text-sm line-clamp-2 hover:text-primary transition-colors" title={video.title}>
-                    {video.title}
-                  </h3>
-                </Link>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {video.channel.title}
-                  {video.category ? ` · ${video.category}` : ""}
-                  · {new Date(video.publishedAt).toLocaleDateString()}
-                  {video.durationSec ? (
-                    <span className="ml-2">
-                      {Math.floor(video.durationSec / 60)}:
-                      {String(video.durationSec % 60).padStart(2, "0")}
-                    </span>
-                  ) : null}
-                </p>
-              </div>
-              <VideoStatusToggle
-                videoId={video.id}
-                currentStatus={status}
-              />
-              <VideoTags videoId={video.id} tags={video.videoTags.map((vt) => ({ id: vt.tag.id, name: vt.tag.name, score: vt.score }))} />
-              <VideoTranscript
-                videoId={video.id}
-                transcript={video.transcript}
-              />
-            </CardContent>
-          </Card>
+          <VideoCard
+            key={video.id}
+            video={{
+              id: video.id,
+              title: video.title,
+              thumbnail: video.thumbnail,
+              publishedAt: video.publishedAt,
+              durationSec: video.durationSec,
+              transcript: video.transcript,
+              videoTags: video.videoTags.map((vt) => ({
+                id: vt.tag.id,
+                name: vt.tag.name,
+                score: vt.score,
+              })),
+              status: (video.userStates[0]?.status as VideoStatus) || "UNWATCHED",
+            }}
+            href={`/videos/${video.id}?from=${encodeURIComponent(from)}`}
+            subtitle={
+              <>
+                {video.channel.title}
+                {video.category ? ` · ${video.category}` : ""}
+                · {new Date(video.publishedAt).toLocaleDateString()}
+                {video.durationSec ? (
+                  <span className="ml-2">
+                    {Math.floor(video.durationSec / 60)}:
+                    {String(video.durationSec % 60).padStart(2, "0")}
+                  </span>
+                ) : null}
+              </>
+            }
+          />
         ))}
       </div>
       <Pagination page={page} totalPages={totalPages} basePath="/videos" />

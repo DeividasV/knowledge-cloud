@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { generateVideoTags } from "@/app/actions/videos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Loader2, RefreshCw, ArrowRight } from "lucide-react";
+import { Sparkles, Loader2, RefreshCw } from "lucide-react";
 
 export interface ScoredTag {
   id: string;
@@ -15,21 +15,20 @@ export interface ScoredTag {
 }
 
 function getStrongTags(tags: ScoredTag[]): ScoredTag[] {
-  if (tags.length <= 3) return tags;
+  if (tags.length <= 4) return tags;
 
   const maxScore = tags[0]?.score ?? 0;
-  if (maxScore <= 0) return tags.slice(0, 3);
+  if (maxScore <= 0) return tags.slice(0, 4);
 
   const threshold = maxScore * 0.3;
   const strong: ScoredTag[] = [];
 
   for (const tag of tags) {
-    if (tag.score >= threshold && strong.length < 3) {
+    if (tag.score >= threshold && strong.length < 4) {
       strong.push(tag);
     }
   }
 
-  // Ensure at least 1 tag shown if available
   if (strong.length === 0 && tags.length > 0) {
     strong.push(tags[0]);
   }
@@ -55,7 +54,6 @@ export function VideoTags({
   };
 
   const strong = getStrongTags(tags);
-  const hasMore = tags.length > strong.length;
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -63,6 +61,7 @@ export function VideoTags({
         <Link
           key={tag.id}
           href={`/tags/${encodeURIComponent(tag.name)}`}
+          onClick={(e) => e.stopPropagation()}
         >
           <Badge
             variant="outline"
@@ -73,19 +72,12 @@ export function VideoTags({
         </Link>
       ))}
 
-      {hasMore && (
-        <Link
-          href={`/videos/${videoId}`}
-          className="inline-flex items-center h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
-        >
-          <ArrowRight className="h-3 w-3 mr-0.5" />
-          Details
-        </Link>
-      )}
-
       {tags.length === 0 ? (
         <Button
-          onClick={handleGenerate}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleGenerate();
+          }}
           disabled={isPending}
           variant="ghost"
           size="sm"
@@ -100,7 +92,10 @@ export function VideoTags({
         </Button>
       ) : (
         <Button
-          onClick={handleGenerate}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleGenerate();
+          }}
           disabled={isPending}
           variant="ghost"
           size="sm"
