@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Tv, PlaySquare, Settings, LogOut, Moon, Sun, Network } from "lucide-react";
+import { LayoutDashboard, Tv, PlaySquare, Settings, LogOut, Moon, Sun, Network, List } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,6 +16,7 @@ const navItems = [
   { href: "/channels", label: "Channels", icon: Tv },
   { href: "/videos", label: "Videos", icon: PlaySquare },
   { href: "/tags", label: "Tag Graph", icon: Network },
+  { href: "/tags/list", label: "Tag List", icon: List },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -32,7 +33,10 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
       <nav className="flex-1 space-y-1 p-4">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const isActive =
+            item.href === "/tags"
+              ? pathname === "/tags"
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}

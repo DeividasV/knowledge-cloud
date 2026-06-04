@@ -188,3 +188,178 @@ export async function getTagDetailByName(tagName: string): Promise<TagDetail | n
     siblings,
   };
 }
+
+export interface TagListItem {
+  id: string;
+  name: string;
+  totalVideos: number;
+  watchedCount: number;
+  unwatchedCount: number;
+  notInterestedCount: number;
+  totalScore: number;
+  watchedScore: number;
+  remainingScore: number;
+  completion: number;
+}
+
+export interface TagListResult {
+  tags: TagListItem[];
+  total: number;
+}
+
+export async function getAllTags(options: {
+  page: number;
+  pageSize: number;
+  sortBy: string;
+  sortOrder: string;
+  query?: string;
+  filter?: string;
+}): Promise<TagListResult> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Not authenticated");
+  const userId = session.user.id;
+
+  // Get all videoTags for user's channels
+  const videoTags = await prisma.videoTag.findMany({
+    where: {
+      video: {
+        channel: { users: { some: { id: userId } } },
+      },
+    },
+    select: {
+      score: true,
+      tag: { select: { id: true, name: true } },
+      video: {
+        select: {
+          userStates: {
+            where: { userId },
+            select: { status: true },
+          },
+        },
+      },
+    },
+  });
+
+  // Aggregate by tag
+  const tagMap = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      totalScore: number;
+      watchedScore: number;
+      totalVideos: number;
+      watchedCount: number;
+      unwatchedCount: number;
+      notInterestedCount: number;
+    }
+  >();
+
+  for (const vt of videoTags) {
+    const status = vt.video.userStates[0]?.status ?? "UNWATCHED";
+    const existing = tagMap.get(vt.tag.id);
+    if (existing) {
+      existing.totalScore += vt.score;
+      existing.totalVideos++;
+      if (status === "WATCHED") {
+        existing.watchedCount++;
+        existing.watchedScore += vt.score;
+      } else if (status === "NOT_INTERESTED") {
+        existing.notInterestedCount++;
+      } else {
+        existing.unwatchedCount++;
+      }
+    } else {
+      tagMap.set(vt.tag.id, {
+        id: vt.tag.id,
+        name: vt.tag.name,
+        totalScore: vt.score,
+        watchedScore: status === "WATCHED" ? vt.score : 0,
+        totalVideos: 1,
+        watchedCount: status === "WATCHED" ? 1 : 0,
+        unwatchedCount: status === "UNWATCHED" || status === "WATCHING" ? 1 : 0,
+        notInterestedCount: status === "NOT_INTERESTED" ? 1 : 0,
+      });
+    }
+  }
+
+  let tags = Array.from(tagMap.values()).map((t) => {
+    const completion =
+      t.totalScore > 0 ? Math.round((t.watchedScore / t.totalScore) * 100) : 0;
+    return {
+      id: t.id,
+      name: t.name,
+      totalVideos: t.totalVideos,
+      watchedCount: t.watchedCount,
+      unwatchedCount: t.unwatchedCount,
+      notInterestedCount: t.notInterestedCount,
+      totalScore: Math.round(t.totalScore * 100) / 100,
+      watchedScore: Math.round(t.watchedScore * 100) / 100,
+      remainingScore:
+        Math.round((t.totalScore - t.watchedScore) * 100) / 100,
+      completion,
+    };
+  });
+
+  // Filter by search query
+  if (options.query && options.query.trim()) {
+    const q = options.query.trim().toLowerCase();
+    tags = tags.filter((t) => t.name.toLowerCase().includes(q));
+  }
+
+  // Filter by completion status
+  if (options.filter) {
+    switch (options.filter) {
+      case "complete":
+        tags = tags.filter(
+          (t) => t.totalVideos > 0 && t.watchedCount === t.totalVideos
+        );
+        break;
+      case "in_progress":
+        tags = tags.filter(
+          (t) =>
+            t.totalVideos > 0 &&
+            t.watchedCount > 0 &&
+            t.watchedCount < t.totalVideos
+        );
+        break;
+      case "not_started":
+        tags = tags.filter(
+          (t) => t.totalVideos > 0 && t.watchedCount === 0
+        );
+        break;
+    }
+  }
+
+  // Sort
+  const sortOrder = options.sortOrder === "asc" ? 1 : -1;
+  switch (options.sortBy) {
+    case "name":
+      tags.sort((a, b) => sortOrder * a.name.localeCompare(b.name));
+      break;
+    case "videos":
+      tags.sort((a, b) => sortOrder * (a.totalVideos - b.totalVideos));
+      break;
+    case "score":
+      tags.sort((a, b) => sortOrder * (a.totalScore - b.totalScore));
+      break;
+    case "watchedScore":
+      tags.sort((a, b) => sortOrder * (a.watchedScore - b.watchedScore));
+      break;
+    case "watched":
+      tags.sort((a, b) => sortOrder * (a.watchedCount - b.watchedCount));
+      break;
+    case "completion":
+      tags.sort((a, b) => sortOrder * (a.completion - b.completion));
+      break;
+    default:
+      tags.sort((a, b) => sortOrder * (b.totalScore - a.totalScore));
+      break;
+  }
+
+  const total = tags.length;
+  const start = (options.page - 1) * options.pageSize;
+  const paginated = tags.slice(start, start + options.pageSize);
+
+  return { tags: paginated, total };
+}

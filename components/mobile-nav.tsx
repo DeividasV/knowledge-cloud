@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Tv, PlaySquare, Settings, Menu, Network } from "lucide-react";
+import { LayoutDashboard, Tv, PlaySquare, Settings, Menu, Network, List } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -15,6 +15,7 @@ const navItems = [
   { href: "/channels", label: "Channels", icon: Tv },
   { href: "/videos", label: "Videos", icon: PlaySquare },
   { href: "/tags", label: "Tag Graph", icon: Network },
+  { href: "/tags/list", label: "Tag List", icon: List },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -39,7 +40,10 @@ export function MobileNav() {
           <nav className="mt-6 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const isActive =
+                item.href === "/tags"
+                  ? pathname === "/tags"
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
                   key={item.href}
