@@ -5,6 +5,7 @@ import { VideoCard } from "@/components/video-card";
 import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
+import { AddVideoForm } from "@/components/add-video-form";
 
 const PAGE_SIZE = 50;
 
@@ -150,6 +151,7 @@ export default async function VideosPage({
         </p>
       </div>
 
+      <AddVideoForm />
       <SearchInput placeholder="Search videos by title..." />
 
       <Tabs defaultValue="all">
