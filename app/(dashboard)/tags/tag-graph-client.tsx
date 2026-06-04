@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useTransition, useCallback, useEffect } from "react";
-import { TagGraph, TagDetailPanel } from "@/components/tag-graph";
-import { TagGraphData, getTagGraph, getVideosForTag } from "@/app/actions/tag-graph";
-import { TagGraphNode } from "@/app/actions/tag-graph";
+import { useRouter } from "next/navigation";
+import { TagGraph } from "@/components/tag-graph";
+import { TagGraphData, getTagGraph } from "@/app/actions/tag-graph";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Network } from "lucide-react";
@@ -17,12 +17,10 @@ export function TagGraphClient({
   initialGraph: TagGraphData;
   categories: string[];
 }) {
+  const router = useRouter();
   const [graph, setGraph] = useState<TagGraphData>(initialGraph);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedTag, setSelectedTag] = useState<TagGraphNode | null>(null);
-  const [videos, setVideos] = useState<any[]>([]);
-  const [isPending, startTransition] = useTransition();
 
   // Load saved selection from localStorage
   useEffect(() => {
@@ -83,24 +81,13 @@ export function TagGraphClient({
 
   const handleNodeClick = useCallback(
     (tagId: string) => {
-      const tag = graph.nodes.find((n) => n.id === tagId) ?? null;
-      setSelectedTag(tag);
-      startTransition(async () => {
-        const result = await getVideosForTag(
-          tagId,
-          20,
-          selectedCategories.length > 0 ? selectedCategories : undefined
-        );
-        setVideos(result);
-      });
+      const tag = graph.nodes.find((n) => n.id === tagId);
+      if (tag) {
+        router.push(`/tags/${encodeURIComponent(tag.name)}`);
+      }
     },
-    [graph.nodes, selectedCategories]
+    [graph.nodes, router]
   );
-
-  const handleClose = useCallback(() => {
-    setSelectedTag(null);
-    setVideos([]);
-  }, []);
 
   const allSelected = categories.length > 0 && selectedCategories.length === categories.length;
 
@@ -166,23 +153,11 @@ export function TagGraphClient({
             </div>
           </div>
         ) : (
-          <>
-            <TagGraph
-              nodes={graph.nodes}
-              edges={graph.edges}
-              onNodeClick={handleNodeClick}
-            />
-            {isPending && !selectedTag && (
-              <div className="absolute top-4 right-4 text-sm text-muted-foreground">
-                Loading...
-              </div>
-            )}
-            <TagDetailPanel
-              tag={selectedTag}
-              videos={videos}
-              onClose={handleClose}
-            />
-          </>
+          <TagGraph
+            nodes={graph.nodes}
+            edges={graph.edges}
+            onNodeClick={handleNodeClick}
+          />
         )}
       </div>
     </div>

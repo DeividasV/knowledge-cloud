@@ -60,13 +60,17 @@ export function VideoTags({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {strong.map((tag) => (
-        <Badge
+        <Link
           key={tag.id}
-          variant="outline"
-          className="text-[10px] px-1.5 py-0 font-normal bg-secondary/30"
+          href={`/tags/${encodeURIComponent(tag.name)}`}
         >
-          {tag.name}
-        </Badge>
+          <Badge
+            variant="outline"
+            className="text-[10px] px-1.5 py-0 font-normal bg-secondary/30 cursor-pointer hover:bg-primary/10 hover:border-primary/30 transition-colors"
+          >
+            {tag.name}
+          </Badge>
+        </Link>
       ))}
 
       {hasMore && (

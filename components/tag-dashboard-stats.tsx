@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getTopTagsWithWatchStats, getTagScoreSummary } from "@/app/actions/videos";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -96,12 +97,14 @@ export async function TagDashboardStats() {
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <Badge
-                          variant="outline"
-                          className="text-[11px] px-2 py-0.5 font-medium bg-secondary/40 border-secondary shrink-0"
-                        >
-                          {tag.name}
-                        </Badge>
+                        <Link href={`/tags/${encodeURIComponent(tag.name)}`}>
+                          <Badge
+                            variant="outline"
+                            className="text-[11px] px-2 py-0.5 font-medium bg-secondary/40 border-secondary shrink-0 cursor-pointer hover:bg-primary/10 hover:border-primary/30 transition-colors"
+                          >
+                            {tag.name}
+                          </Badge>
+                        </Link>
                         <span className="text-[11px] text-muted-foreground tabular-nums hidden sm:inline">
                           Σ {tag.totalScore.toFixed(2)}
                         </span>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { generateVideoTags } from "@/app/actions/videos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -91,9 +92,11 @@ export function TagReportClient({
               </span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-0.5">
-                  <span className="text-sm font-medium truncate">
-                    {tag.name}
-                  </span>
+                  <Link href={`/tags/${encodeURIComponent(tag.name)}`}>
+                    <span className="text-sm font-medium truncate hover:text-primary hover:underline transition-colors cursor-pointer">
+                      {tag.name}
+                    </span>
+                  </Link>
                   <div className="flex items-center gap-2 shrink-0">
                     {tagCounts && tagCounts[tag.id] !== undefined && (
                       <Badge
@@ -150,5 +153,3 @@ export function TagReportClient({
     </div>
   );
 }
-
-
