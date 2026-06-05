@@ -2,11 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PlaySquare, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PlaySquare, Users, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { SearchInput } from "@/components/search-input";
 import { CategoryFilter } from "./channels-client";
 import { AddChannelForm } from "@/components/add-channel-form";
+import { removeChannel } from "@/app/actions/channels";
 
 export default async function ChannelsPage({
   searchParams,
@@ -100,8 +102,8 @@ export default async function ChannelsPage({
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {channelsWithCounts.map((channel) => (
-            <Link key={channel.id} href={`/channels/${channel.id}`}>
-              <Card className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer h-full">
+            <Card key={channel.id} className="overflow-hidden hover:shadow-md transition-shadow h-full group relative">
+              <Link href={`/channels/${channel.id}`} className="block">
                 <div className="aspect-video bg-muted relative">
                   {channel.thumbnail ? (
                     <img
@@ -135,8 +137,22 @@ export default async function ChannelsPage({
                     )}
                   </div>
                 </CardContent>
-              </Card>
-            </Link>
+              </Link>
+              <form
+                action={removeChannel.bind(null, channel.id)}
+                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  type="submit"
+                  className="h-7 w-7 p-0 bg-black/50 hover:bg-red-600 text-white border-0"
+                  title="Unsubscribe from channel"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </form>
+            </Card>
           ))}
         </div>
       )}

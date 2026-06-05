@@ -15,10 +15,11 @@ import {
   Tag,
   FileText,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
 import { VideoStatus } from "@/lib/types";
-import { generateVideoTags } from "@/app/actions/videos";
+import { generateVideoTags, removeVideo } from "@/app/actions/videos";
 import { TagReportClient } from "@/components/tag-report-client";
 import { VideoTranscriptStatic } from "@/components/video-transcript-static";
 import { userVideosWhere } from "@/lib/video-access";
@@ -191,7 +192,7 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
             currentStatus={currentStatus}
           />
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <a
               href={youtubeUrl}
               target="_blank"
@@ -214,6 +215,17 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
                 </Button>
               </form>
             )}
+            <form
+              action={async () => {
+                "use server";
+                await removeVideo(videoId);
+              }}
+            >
+              <Button size="sm" variant="ghost" type="submit" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Remove
+              </Button>
+            </form>
           </div>
         </div>
       </div>

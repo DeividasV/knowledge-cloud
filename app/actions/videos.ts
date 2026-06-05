@@ -1023,7 +1023,7 @@ export async function generateTagsBatch(videoIds: string[]) {
 
 // ── Manual video addition ─────────────────────────────────────────────
 
-export async function addVideoByUrl(url: string, standalone = false) {
+export async function addVideoByUrl(url: string) {
   const userId = await getUserId();
 
   const videoId = extractVideoId(url);
@@ -1035,39 +1035,29 @@ export async function addVideoByUrl(url: string, standalone = false) {
   });
 
   if (existing) {
-    if (standalone) {
-      // Mark as standalone for this user
-      await prisma.userVideo.upsert({
-        where: { userId_videoId: { userId, videoId: existing.id } },
-        update: { addedStandalone: true },
-        create: {
-          userId,
-          videoId: existing.id,
-          status: "UNWATCHED",
-          progressSec: 0,
-          addedStandalone: true,
-        },
-      });
-    } else if (existing.channelId) {
-      // Link user to the video's channel
-      await prisma.user.update({
-        where: { id: userId },
-        data: { channels: { connect: { id: existing.channelId } } },
-      });
-    }
+    // Always mark as standalone for this user
+    await prisma.userVideo.upsert({
+      where: { userId_videoId: { userId, videoId: existing.id } },
+      update: { addedStandalone: true },
+      create: {
+        userId,
+        videoId: existing.id,
+        status: "UNWATCHED",
+        progressSec: 0,
+        addedStandalone: true,
+      },
+    });
     revalidatePath("/videos");
     revalidatePath("/channels/[channelId]");
     return { success: true, videoId, alreadyExisted: true };
   }
 
   let videoData;
-  let usedFallback = false;
   try {
     videoData = await fetchVideoById(videoId);
   } catch (e: any) {
     if (e?.message?.includes("YOUTUBE_API_KEY is not configured")) {
       videoData = await fetchVideoByIdFallback(videoId);
-      usedFallback = true;
     } else {
       throw e;
     }
@@ -1076,104 +1066,71 @@ export async function addVideoByUrl(url: string, standalone = false) {
 
   const snippet = videoData.snippet;
   const contentDetails = videoData.contentDetails;
-  const channelId = snippet.channelId;
+  const channelId = snippet.channelId || null;
 
   const catId = snippet.categoryId ? parseInt(snippet.categoryId, 10) : undefined;
   const category = catId ? YOUTUBE_CATEGORY_MAP[catId] : undefined;
 
-  if (standalone) {
-    // Create standalone video (no channel link)
-    await prisma.video.create({
-      data: {
-        id: videoId,
-        title: snippet.title,
-        description: snippet.description,
-        thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url,
-        durationSec: parseDuration(contentDetails.duration),
-        publishedAt: new Date(snippet.publishedAt),
-        channelId: null,
-        category,
-      },
+  // Create/update channel record if we have channel info, but don't subscribe user
+  if (channelId) {
+    const channelExists = await prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { id: true },
     });
 
-    await prisma.userVideo.create({
-      data: {
-        userId,
-        videoId,
-        status: "UNWATCHED",
-        progressSec: 0,
-        addedStandalone: true,
-      },
-    });
+    if (!channelExists) {
+      try {
+        const chData = await fetchChannelDetailsById(channelId);
+        const ch = chData.items?.[0];
+        if (ch) {
+          const uploadsPlaylistId = ch.contentDetails?.relatedPlaylists?.uploads;
+          const topicIds = ch.topicDetails?.topicIds as string[] | undefined;
+          const detectedCategories: string[] = [];
+          if (topicIds) {
+            for (const id of topicIds) {
+              const cat = getCategoryFromTopics([id]);
+              if (cat) detectedCategories.push(cat);
+            }
+          }
 
-    revalidatePath("/videos");
-    return { success: true, videoId, alreadyExisted: false };
-  }
-
-  // Non-standalone: create/link channel as before
-  if (usedFallback) {
-    throw new Error(
-      "YouTube API key is required to subscribe to a channel. " +
-        "Check 'Add without subscribing to channel' to save it as a standalone video."
-    );
-  }
-  if (!channelId) {
-    throw new Error(
-      "Could not determine the video's channel. " +
-        "Check 'Add without subscribing to channel' to save it as a standalone video."
-    );
-  }
-
-  const channelExists = await prisma.channel.findUnique({
-    where: { id: channelId },
-    select: { id: true },
-  });
-
-  if (!channelExists) {
-    const chData = await fetchChannelDetailsById(channelId);
-    const ch = chData.items?.[0];
-    if (ch) {
-      const uploadsPlaylistId = ch.contentDetails?.relatedPlaylists?.uploads;
-      const topicIds = ch.topicDetails?.topicIds as string[] | undefined;
-      const detectedCategories: string[] = [];
-      if (topicIds) {
-        for (const id of topicIds) {
-          const cat = getCategoryFromTopics([id]);
-          if (cat) detectedCategories.push(cat);
-        }
-      }
-
-      await prisma.channel.create({
-        data: {
-          id: ch.id,
-          title: ch.snippet.title,
-          thumbnail: ch.snippet.thumbnails?.medium?.url || ch.snippet.thumbnails?.default?.url,
-          uploadsPlaylistId,
-          subscriberCount: ch.statistics?.subscriberCount ? parseInt(ch.statistics.subscriberCount, 10) : null,
-          videoCount: ch.statistics?.videoCount ? parseInt(ch.statistics.videoCount, 10) : null,
-        },
-      });
-
-      if (detectedCategories.length > 0) {
-        for (const name of detectedCategories) {
-          const cat = await prisma.category.upsert({
-            where: { name },
-            create: { name },
-            update: {},
+          await prisma.channel.create({
+            data: {
+              id: ch.id,
+              title: ch.snippet.title,
+              thumbnail: ch.snippet.thumbnails?.medium?.url || ch.snippet.thumbnails?.default?.url,
+              uploadsPlaylistId,
+              subscriberCount: ch.statistics?.subscriberCount ? parseInt(ch.statistics.subscriberCount, 10) : null,
+              videoCount: ch.statistics?.videoCount ? parseInt(ch.statistics.videoCount, 10) : null,
+            },
           });
-          await prisma.channel.update({
-            where: { id: ch.id },
-            data: { categories: { connect: { id: cat.id } } },
-          });
+
+          if (detectedCategories.length > 0) {
+            for (const name of detectedCategories) {
+              const cat = await prisma.category.upsert({
+                where: { name },
+                create: { name },
+                update: {},
+              });
+              await prisma.channel.update({
+                where: { id: ch.id },
+                data: { categories: { connect: { id: cat.id } } },
+              });
+            }
+          }
         }
+      } catch {
+        // Channel fetch failed (e.g. no API key) — store channel ID as-is
+        await prisma.channel.upsert({
+          where: { id: channelId },
+          create: {
+            id: channelId,
+            title: snippet.channelTitle || "Unknown channel",
+          },
+          update: {},
+        });
       }
     }
   }
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { channels: { connect: { id: channelId } } },
-  });
 
   await prisma.video.create({
     data: {
@@ -1188,11 +1145,49 @@ export async function addVideoByUrl(url: string, standalone = false) {
     },
   });
 
+  await prisma.userVideo.create({
+    data: {
+      userId,
+      videoId,
+      status: "UNWATCHED",
+      progressSec: 0,
+      addedStandalone: true,
+    },
+  });
+
   revalidatePath("/videos");
   revalidatePath("/channels/[channelId]");
   return { success: true, videoId, alreadyExisted: false };
 }
 
-export async function addVideoById(videoId: string, standalone = false) {
-  return addVideoByUrl(videoId, standalone);
+export async function addVideoById(videoId: string) {
+  return addVideoByUrl(videoId);
+}
+
+export async function removeVideo(videoId: string) {
+  const userId = await getUserId();
+
+  const userVideo = await prisma.userVideo.findUnique({
+    where: { userId_videoId: { userId, videoId } },
+  });
+
+  if (userVideo?.addedStandalone) {
+    await prisma.userVideo.delete({ where: { id: userVideo.id } });
+  } else {
+    // For channel videos, mark as not interested
+    await prisma.userVideo.upsert({
+      where: { userId_videoId: { userId, videoId } },
+      update: { status: "NOT_INTERESTED" },
+      create: {
+        userId,
+        videoId,
+        status: "NOT_INTERESTED",
+        progressSec: 0,
+      },
+    });
+  }
+
+  revalidatePath("/videos");
+  revalidatePath("/channels/[channelId]");
+  revalidatePath("/videos/[videoId]");
 }
