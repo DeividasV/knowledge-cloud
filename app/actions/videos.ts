@@ -1159,6 +1159,7 @@ export async function addVideoByUrl(url: string) {
       description: snippet.description,
       thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url,
       durationSec: parseDuration(contentDetails.duration),
+      viewCount: videoData.statistics?.viewCount ? parseInt(videoData.statistics.viewCount, 10) : null,
       publishedAt: new Date(snippet.publishedAt),
       channelId,
       category,

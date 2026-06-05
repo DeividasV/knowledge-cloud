@@ -65,6 +65,7 @@ export async function syncChannelVideos(channelId: string) {
     description?: string;
     thumbnail?: string;
     durationSec: number | null;
+    viewCount: number | null;
     publishedAt: Date;
     category?: string;
   }> = [];
@@ -98,13 +99,14 @@ export async function syncChannelVideos(channelId: string) {
         description: v.snippet.description,
         thumbnail: v.snippet.thumbnails?.medium?.url || v.snippet.thumbnails?.default?.url,
         durationSec,
+        viewCount: v.statistics?.viewCount ? parseInt(v.statistics.viewCount, 10) : null,
         publishedAt: new Date(v.snippet.publishedAt),
         category: catId ? YOUTUBE_CATEGORY_MAP[catId] : undefined,
       });
     }
   } else {
     // ── No-auth path: RSS + page scrape ───────────────────────────────
-    let scraped: Array<{ id: string; title: string; description?: string; thumbnail?: string; publishedAt?: string }> = [];
+    let scraped: Array<{ id: string; title: string; description?: string; thumbnail?: string; viewCount?: number | null; publishedAt?: string }> = [];
 
     // Try RSS first (best data quality, ~15 videos)
     try {
@@ -147,6 +149,7 @@ export async function syncChannelVideos(channelId: string) {
         description: v.description,
         thumbnail: v.thumbnail || `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,
         durationSec: null,
+        viewCount: null,
         publishedAt: v.publishedAt ? new Date(v.publishedAt) : new Date(),
         category: undefined,
       });
@@ -181,6 +184,7 @@ export async function syncChannelVideos(channelId: string) {
       description: v.description,
       thumbnail: v.thumbnail,
       durationSec: v.durationSec,
+      viewCount: v.viewCount,
       publishedAt: v.publishedAt,
       channelId: channelId,
       category: v.category,

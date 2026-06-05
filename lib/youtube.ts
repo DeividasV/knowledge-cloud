@@ -213,7 +213,7 @@ export async function fetchVideoDetails(videoIds: string[]) {
   if (videoIds.length === 0) return { items: [] };
 
   const params = apiKeyParam();
-  params.set("part", "snippet,contentDetails");
+  params.set("part", "snippet,contentDetails,statistics");
   params.set("id", videoIds.join(","));
   params.set("maxResults", "50");
 

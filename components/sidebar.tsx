@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Tv, PlaySquare, Settings, LogOut, Moon, Sun, Network, List } from "lucide-react";
+import { LayoutDashboard, Tv, PlaySquare, Settings, LogOut, Moon, Sun, Network, List, Sparkles } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,6 +15,7 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/channels", label: "Channels", icon: Tv },
   { href: "/videos", label: "Videos", icon: PlaySquare },
+  { href: "/recommendations", label: "Recommendations", icon: Sparkles },
   { href: "/tags", label: "Tag Graph", icon: Network },
   { href: "/tags/list", label: "Tag List", icon: List },
   { href: "/settings", label: "Settings", icon: Settings },

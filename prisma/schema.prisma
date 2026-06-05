@@ -89,6 +89,7 @@ model Video {
   description         String?
   thumbnail           String?
   durationSec         Int?
+  viewCount           Int?
   publishedAt         DateTime
   channelId           String?
   channel             Channel?    @relation(fields: [channelId], references: [id])
