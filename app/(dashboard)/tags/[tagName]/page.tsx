@@ -149,52 +149,117 @@ export default async function TagDetailPage({ params, searchParams }: PageProps)
       {/* Main content */}
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Videos */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Videos</h2>
+        <div className="space-y-6">
           {detail.videos.length === 0 ? (
             <p className="text-sm text-muted-foreground">No videos with this tag.</p>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {detail.videos.map((video) => (
-                <VideoCard
-                  key={video.id}
-                  video={{
-                    id: video.id,
-                    title: video.title,
-                    thumbnail: video.thumbnail,
-                    publishedAt: video.publishedAt,
-                    durationSec: video.durationSec,
-                    transcript: video.transcript,
-                    videoTags: video.videoTags.map((vt) => ({
-                      id: vt.tag.id,
-                      name: vt.tag.name,
-                      score: vt.score,
-                    })),
-                    status: video.status as VideoStatus,
-                  }}
-                  href={`/videos/${video.id}?from=${encodeURIComponent(returnUrl)}`}
-                  subtitle={
-                    <>
-                      {video.channel?.title ?? (
-                        <span className="text-amber-600 dark:text-amber-400 font-medium">
-                          Standalone
-                        </span>
-                      )}
-                      · {new Date(video.publishedAt).toLocaleDateString()}
-                      {video.durationSec ? (
-                        <span className="ml-2">
-                          {Math.floor(video.durationSec / 60)}:
-                          {String(video.durationSec % 60).padStart(2, "0")}
-                        </span>
-                      ) : null}
-                      <span className="ml-2 text-muted-foreground/70">
-                        score {video.score.toFixed(2)}
-                      </span>
-                    </>
-                  }
-                />
-              ))}
-            </div>
+            <>
+              {/* Unwatched */}
+              {detail.unwatchedCount > 0 && (
+                <div className="space-y-3">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <EyeOff className="h-4 w-4 text-slate-500" />
+                    Unwatched ({detail.unwatchedCount})
+                  </h2>
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {detail.videos
+                      .filter((v) => v.status !== "WATCHED")
+                      .map((video) => (
+                        <VideoCard
+                          key={video.id}
+                          video={{
+                            id: video.id,
+                            title: video.title,
+                            thumbnail: video.thumbnail,
+                            publishedAt: video.publishedAt,
+                            durationSec: video.durationSec,
+                            transcript: video.transcript,
+                            videoTags: video.videoTags.map((vt) => ({
+                              id: vt.tag.id,
+                              name: vt.tag.name,
+                              score: vt.score,
+                            })),
+                            status: video.status as VideoStatus,
+                          }}
+                          href={`/videos/${video.id}?from=${encodeURIComponent(returnUrl)}`}
+                          subtitle={
+                            <>
+                              {video.channel?.title ?? (
+                                <span className="text-amber-600 dark:text-amber-400 font-medium">
+                                  Standalone
+                                </span>
+                              )}
+                              · {new Date(video.publishedAt).toLocaleDateString()}
+                              {video.durationSec ? (
+                                <span className="ml-2">
+                                  {Math.floor(video.durationSec / 60)}:
+                                  {String(video.durationSec % 60).padStart(2, "0")}
+                                </span>
+                              ) : null}
+                              <span className="ml-2 text-muted-foreground/70">
+                                score {video.score.toFixed(2)}
+                              </span>
+                            </>
+                          }
+                        />
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Watched */}
+              {detail.watchedCount > 0 && (
+                <div className="space-y-3">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-emerald-600" />
+                    Watched ({detail.watchedCount})
+                  </h2>
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {detail.videos
+                      .filter((v) => v.status === "WATCHED")
+                      .map((video) => (
+                        <VideoCard
+                          key={video.id}
+                          video={{
+                            id: video.id,
+                            title: video.title,
+                            thumbnail: video.thumbnail,
+                            publishedAt: video.publishedAt,
+                            durationSec: video.durationSec,
+                            transcript: video.transcript,
+                            videoTags: video.videoTags.map((vt) => ({
+                              id: vt.tag.id,
+                              name: vt.tag.name,
+                              score: vt.score,
+                            })),
+                            status: video.status as VideoStatus,
+                          }}
+                          href={`/videos/${video.id}?from=${encodeURIComponent(returnUrl)}`}
+                          subtitle={
+                            <>
+                              {video.channel?.title ?? (
+                                <span className="text-amber-600 dark:text-amber-400 font-medium">
+                                  Standalone
+                                </span>
+                              )}
+                              · {new Date(video.publishedAt).toLocaleDateString()}
+                              {video.durationSec ? (
+                                <span className="ml-2">
+                                  {Math.floor(video.durationSec / 60)}:
+                                  {String(video.durationSec % 60).padStart(2, "0")}
+                                </span>
+                              ) : null}
+                              <span className="ml-2 text-muted-foreground/70">
+                                score {video.score.toFixed(2)}
+                              </span>
+                            </>
+                          }
+                        />
+                      ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 
