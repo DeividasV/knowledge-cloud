@@ -18,7 +18,7 @@ import {
   getCategoryFromTopics,
   YOUTUBE_CATEGORY_MAP,
 } from "@/lib/youtube";
-import { userVideosWhere } from "@/lib/video-access";
+import { userVideosWhere, userVideosWhereWithCategory } from "@/lib/video-access";
 
 async function getUserId(): Promise<string> {
   const session = await auth();
@@ -147,7 +147,7 @@ export async function getVideoById(videoId: string) {
   const video = await prisma.video.findFirst({
     where: {
       id: videoId,
-      ...userVideosWhere(userId),
+      ...(await userVideosWhere(userId)),
     },
     include: {
       channel: true,
@@ -168,7 +168,7 @@ export async function getRecentVideos(limit = 10) {
   const userId = await getUserId();
 
   const videos = await prisma.video.findMany({
-    where: userVideosWhere(userId),
+    where: await userVideosWhereWithCategory(userId),
     orderBy: { publishedAt: "desc" },
     take: limit,
     include: {
@@ -188,13 +188,14 @@ export async function getRecentVideos(limit = 10) {
 
 export async function getDashboardStats() {
   const userId = await getUserId();
+  const videoWhere = await userVideosWhereWithCategory(userId);
 
   const [totalChannels, totalVideos, stats, transcriptCount] = await Promise.all([
     prisma.channel.count({
       where: { users: { some: { id: userId } } },
     }),
     prisma.video.count({
-      where: userVideosWhere(userId),
+      where: videoWhere,
     }),
     prisma.userVideo.groupBy({
       by: ["status"],
@@ -203,7 +204,7 @@ export async function getDashboardStats() {
     }),
     prisma.video.count({
       where: {
-        ...userVideosWhere(userId),
+        ...videoWhere,
         transcript: { not: null },
       },
     }),
@@ -302,10 +303,11 @@ export async function fetchAndStoreTranscript(videoId: string) {
 
 export async function getTranscriptStats() {
   const userId = await getUserId();
+  const videoWhere = await userVideosWhereWithCategory(userId);
 
   const [withTranscript, withoutTranscript] = await Promise.all([
-    prisma.video.count({ where: { ...userVideosWhere(userId), transcript: { not: null } } }),
-    prisma.video.count({ where: { ...userVideosWhere(userId), transcript: null } }),
+    prisma.video.count({ where: { ...videoWhere, transcript: { not: null } } }),
+    prisma.video.count({ where: { ...videoWhere, transcript: null } }),
   ]);
 
   return { withTranscript, withoutTranscript };
@@ -468,10 +470,11 @@ export async function generateVideoTags(videoId: string) {
 
 export async function generateTagsForUntagged(limit = 100) {
   const userId = await getUserId();
+  const videoWhere = await userVideosWhere(userId);
 
   const untaggedVideos = await prisma.video.findMany({
     where: {
-      ...userVideosWhere(userId),
+      ...videoWhere,
       videoTags: { none: {} },
       OR: [
         { transcript: { not: null } },
@@ -530,10 +533,11 @@ export async function generateTagsForUntagged(limit = 100) {
 
 export async function generateTagsForAll(limit = 100) {
   const userId = await getUserId();
+  const videoWhere = await userVideosWhere(userId);
 
   const videos = await prisma.video.findMany({
     where: {
-      ...userVideosWhere(userId),
+      ...videoWhere,
       OR: [
         { transcript: { not: null } },
         { description: { not: null } },
@@ -756,7 +760,7 @@ export async function getTagScoreSummary(): Promise<{
 
   const videoTags = await prisma.videoTag.findMany({
     where: {
-      video: userVideosWhere(userId),
+      video: await userVideosWhereWithCategory(userId),
     },
     select: {
       score: true,
@@ -798,7 +802,7 @@ export async function getTopTagsWithWatchStats(limit = 10): Promise<{
 
   const videoTags = await prisma.videoTag.findMany({
     where: {
-      video: userVideosWhere(userId),
+      video: await userVideosWhereWithCategory(userId),
     },
     select: {
       score: true,
@@ -1006,8 +1010,9 @@ export async function getChannelUntaggedVideoIds(channelId: string) {
 
 export async function getUntaggedVideoIds(limit = 100) {
   const userId = await getUserId();
+  const videoWhere = await userVideosWhere(userId);
   const videos = await prisma.video.findMany({
-    where: { ...userVideosWhere(userId), videoTags: { none: {} } },
+    where: { ...videoWhere, videoTags: { none: {} } },
     select: { id: true },
     take: limit,
     orderBy: { publishedAt: "desc" },
@@ -1017,8 +1022,9 @@ export async function getUntaggedVideoIds(limit = 100) {
 
 export async function getAllVideoIds(limit = 100) {
   const userId = await getUserId();
+  const videoWhere = await userVideosWhere(userId);
   const videos = await prisma.video.findMany({
-    where: userVideosWhere(userId),
+    where: videoWhere,
     select: { id: true },
     take: limit,
     orderBy: { publishedAt: "desc" },
@@ -1221,15 +1227,41 @@ export async function getShortVideoCount(): Promise<number> {
     select: { minVideoDurationSec: true },
   });
   const minDuration = user?.minVideoDurationSec ?? 300;
+  const videoWhere = await userVideosWhereWithCategory(userId);
 
   const count = await prisma.video.count({
     where: {
-      ...userVideosWhere(userId),
+      ...videoWhere,
       durationSec: { not: null, lte: minDuration },
     },
   });
 
   return count;
+}
+
+// ── Selected category ───────────────────────────────────────────────
+
+export async function getSelectedCategory(): Promise<string | null> {
+  const userId = await getUserId();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { selectedCategory: true },
+  });
+  return user?.selectedCategory ?? null;
+}
+
+export async function setSelectedCategory(category: string | null) {
+  const userId = await getUserId();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { selectedCategory: category || null },
+  });
+  revalidatePath("/");
+  revalidatePath("/channels");
+  revalidatePath("/videos");
+  revalidatePath("/recommendations");
+  revalidatePath("/tags");
+  revalidatePath("/tags/list");
 }
 
 export async function removeShortVideos() {
@@ -1240,11 +1272,12 @@ export async function removeShortVideos() {
     select: { minVideoDurationSec: true },
   });
   const minDuration = user?.minVideoDurationSec ?? 300;
+  const videoWhere = await userVideosWhereWithCategory(userId);
 
   // Find short videos from user's visible channels
   const shortVideos = await prisma.video.findMany({
     where: {
-      ...userVideosWhere(userId),
+      ...videoWhere,
       durationSec: { not: null, lte: minDuration },
     },
     select: { id: true },

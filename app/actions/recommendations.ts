@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { userVideosWhere } from "@/lib/video-access";
+import { userVideosWhereWithCategory } from "@/lib/video-access";
 
 export interface RecommendedVideo {
   id: string;
@@ -27,9 +27,9 @@ export async function getRecommendations(options: {
   const userId = session.user.id;
   const limit = options.limit ?? 12;
 
-  // 1. Get all user's visible videos with tags and statuses
+  // 1. Get all user's visible videos with tags and statuses (category applied globally)
   const allVideos = await prisma.video.findMany({
-    where: userVideosWhere(userId),
+    where: await userVideosWhereWithCategory(userId),
     select: {
       id: true,
       publishedAt: true,
@@ -86,16 +86,9 @@ export async function getRecommendations(options: {
     return status !== "WATCHED" && status !== "NOT_INTERESTED";
   });
 
-  // 4. Apply category filter
-  if (options.category) {
-    candidates = candidates.filter((v) =>
-      v.channel?.categories.some((c) => c.name === options.category)
-    );
-  }
-
   if (candidates.length === 0) return [];
 
-  // 5. Get channel subscriber counts for candidates
+  // 4. Get channel subscriber counts for candidates
   const channelIds = Array.from(
     new Set(candidates.map((v) => v.channelId).filter(Boolean))
   );
@@ -105,7 +98,7 @@ export async function getRecommendations(options: {
   });
   const channelMap = new Map(channels.map((c) => [c.id, c]));
 
-  // 6. Get full video data for candidates
+  // 5. Get full video data for candidates
   const candidateIds = candidates.map((v) => v.id);
   const videoDetails = await prisma.video.findMany({
     where: { id: { in: candidateIds } },
@@ -127,7 +120,7 @@ export async function getRecommendations(options: {
     },
   });
 
-  // 7. Compute max values for normalization
+  // 6. Compute max values for normalization
   const now = Date.now();
   const maxDaysAgo = Math.max(
     ...videoDetails.map((v) =>
@@ -148,7 +141,7 @@ export async function getRecommendations(options: {
     1
   );
 
-  // 8. Score each candidate
+  // 7. Score each candidate
   interface ScoredCandidate {
     video: typeof videoDetails[0];
     channel: (typeof channels)[0] | null;
@@ -250,7 +243,7 @@ export async function getRecommendations(options: {
     });
   }
 
-  // 9. Diversity re-ranking (MMR-style)
+  // 8. Diversity re-ranking (MMR-style)
   // Sort by base score, then greedily pick with diversity boost
   scored.sort((a, b) => b.baseScore - a.baseScore);
 

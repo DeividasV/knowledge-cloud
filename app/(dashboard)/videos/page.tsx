@@ -6,7 +6,7 @@ import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
 import { AddVideoForm } from "@/components/add-video-form";
-import { userVideosWhere } from "@/lib/video-access";
+import { userVideosWhereWithCategory } from "@/lib/video-access";
 
 const PAGE_SIZE = 50;
 
@@ -47,15 +47,16 @@ export default async function VideosPage({
     : {};
 
   const isStandaloneTab = tab === "standalone";
+  const baseWhereClause = await userVideosWhereWithCategory(userId);
 
   const baseWhere = isStandaloneTab
     ? {
-        ...userVideosWhere(userId),
+        ...baseWhereClause,
         ...searchWhere,
         channelId: null as string | null,
       }
     : {
-        ...userVideosWhere(userId),
+        ...baseWhereClause,
         ...searchWhere,
         ...(tab === "unwatched"
           ? {
@@ -96,7 +97,7 @@ export default async function VideosPage({
     }),
     prisma.video.count({
       where: {
-        ...userVideosWhere(userId),
+        ...baseWhereClause,
         channelId: null,
       },
     }),
@@ -246,10 +247,12 @@ async function FilteredVideos({
     ? { title: { contains: query } }
     : {};
 
+  const baseWhereClause = await userVideosWhereWithCategory(userId);
+
   const statusFilter =
     status === "UNWATCHED"
       ? {
-          ...userVideosWhere(userId),
+          ...baseWhereClause,
           ...searchWhere,
           NOT: {
             userStates: {
@@ -258,7 +261,7 @@ async function FilteredVideos({
           },
         }
       : {
-          ...userVideosWhere(userId),
+          ...baseWhereClause,
           ...searchWhere,
           userStates: { some: { userId, status } },
         };

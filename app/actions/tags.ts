@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { userVideosWhere } from "@/lib/video-access";
+import { userVideosWhereWithCategory } from "@/lib/video-access";
 
 export interface TagVideoItem {
   id: string;
@@ -57,7 +57,7 @@ export async function getTagDetailByName(tagName: string): Promise<TagDetail | n
   const videoTags = await prisma.videoTag.findMany({
     where: {
       tagId: tag.id,
-      video: userVideosWhere(userId),
+      video: await userVideosWhereWithCategory(userId),
     },
     select: {
       score: true,
@@ -165,7 +165,7 @@ export async function getTagDetailByName(tagName: string): Promise<TagDetail | n
         by: ["tagId"],
         where: {
           tagId: { in: siblingTagIds },
-          video: userVideosWhere(userId),
+          video: await userVideosWhereWithCategory(userId),
         },
         _count: { videoId: true },
       });
@@ -234,7 +234,7 @@ export async function getAllTags(options: {
   // Get all videoTags for user's visible videos
   const videoTags = await prisma.videoTag.findMany({
     where: {
-      video: userVideosWhere(userId),
+      video: await userVideosWhereWithCategory(userId),
     },
     select: {
       score: true,

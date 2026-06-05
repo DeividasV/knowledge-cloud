@@ -1,3 +1,5 @@
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getDashboardStats } from "@/app/actions/videos";
 import { TagDashboardStats } from "@/components/tag-dashboard-stats";
 import { CategoryDashboard } from "@/components/category-dashboard";
@@ -5,7 +7,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tv, PlaySquare, Eye, EyeOff, XCircle } from "lucide-react";
 
 export default async function DashboardPage() {
-  const stats = await getDashboardStats();
+  const session = await auth();
+  const userId = session!.user!.id!;
+
+  const [stats, user] = await Promise.all([
+    getDashboardStats(),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { selectedCategory: true },
+    }),
+  ]);
+
+  const selectedCategory = user?.selectedCategory;
 
   return (
     <div className="space-y-6">
@@ -13,6 +26,11 @@ export default async function DashboardPage() {
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground mt-1">
           Overview of your subscriptions, watch progress, and tags.
+          {selectedCategory && (
+            <span className="ml-1 text-primary font-medium">
+              · filtered by &quot;{selectedCategory}&quot;
+            </span>
+          )}
         </p>
       </div>
 

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { PlaySquare, Users, Trash2, Clock } from "lucide-react";
 import Link from "next/link";
 import { SearchInput } from "@/components/search-input";
-import { CategoryFilter } from "./channels-client";
 import { AddChannelForm } from "@/components/add-channel-form";
 import { removeChannel } from "@/app/actions/channels";
 import { cn } from "@/lib/utils";
@@ -22,17 +21,23 @@ function formatDuration(seconds: number): string {
 export default async function ChannelsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string }>;
+  searchParams: Promise<{ q?: string }>;
 }) {
   const session = await auth();
   const userId = session!.user!.id!;
-  const { q: query, category: categoryFilter } = await searchParams;
+  const { q: query } = await searchParams;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { selectedCategory: true },
+  });
+  const selectedCategory = user?.selectedCategory;
 
   const where = {
     users: { some: { id: userId } },
     ...(query ? { title: { contains: query } } : {}),
-    ...(categoryFilter
-      ? { categories: { some: { name: categoryFilter } } }
+    ...(selectedCategory
+      ? { categories: { some: { name: selectedCategory } } }
       : {}),
   };
 
@@ -173,33 +178,28 @@ export default async function ChannelsPage({
         <p className="text-muted-foreground mt-1">
           Your channels and their video counts. ({channels.length} of{" "}
           {totalChannels} shown)
+          {selectedCategory && (
+            <span className="ml-1 text-primary font-medium">
+              · filtered by "{selectedCategory}"
+            </span>
+          )}
         </p>
       </div>
 
       <AddChannelForm />
       <SearchInput placeholder="Search channels by name..." />
 
-      <CategoryFilter
-        categories={allCategories.map((c) => ({
-          id: c.id,
-          name: c.name,
-          count: c._count.channels,
-        }))}
-        totalChannels={totalChannels}
-        currentCategory={categoryFilter || null}
-      />
-
       {channelsWithStats.length === 0 ? (
         <Card className="p-8 text-center">
           <Users className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
           <h3 className="text-lg font-medium">
-            {query || categoryFilter
+            {query || selectedCategory
               ? "No channels match your filters"
               : "No channels yet"}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            {query || categoryFilter
-              ? "Try different search terms or clear the category filter."
+            {query || selectedCategory
+              ? "Try different search terms or change the category filter in the sidebar."
               : "Add a channel above to get started. Paste a YouTube channel URL, @handle, or channel ID."}
           </p>
         </Card>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { CategorySidebarFilter } from "@/components/category-sidebar-filter";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -22,7 +23,20 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar({ user }: { user: { name?: string | null; email?: string | null; image?: string | null } }) {
+interface Category {
+  id: string;
+  name: string;
+}
+
+export function Sidebar({
+  user,
+  categories,
+  selectedCategory,
+}: {
+  user: { name?: string | null; email?: string | null; image?: string | null };
+  categories: Category[];
+  selectedCategory: string | null;
+}) {
   const pathname = usePathname();
 
   return (
@@ -32,7 +46,7 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
         <span className="text-lg font-semibold">YT Tracker</span>
       </div>
       <Separator />
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive =
@@ -55,6 +69,16 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
             </Link>
           );
         })}
+
+        {categories.length > 0 && (
+          <>
+            <Separator className="my-3" />
+            <CategorySidebarFilter
+              categories={categories}
+              selectedCategory={selectedCategory}
+            />
+          </>
+        )}
       </nav>
       <Separator />
       <div className="p-4 space-y-4">

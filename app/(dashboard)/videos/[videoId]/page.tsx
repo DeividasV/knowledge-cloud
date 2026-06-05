@@ -22,7 +22,7 @@ import { VideoStatus } from "@/lib/types";
 import { generateVideoTags, removeVideo } from "@/app/actions/videos";
 import { TagReportClient } from "@/components/tag-report-client";
 import { VideoTranscriptStatic } from "@/components/video-transcript-static";
-import { userVideosWhere } from "@/lib/video-access";
+import { userVideosWhere, userVideosWhereWithCategory } from "@/lib/video-access";
 
 interface PageProps {
   params: Promise<{ videoId: string }>;
@@ -45,7 +45,7 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
   const video = await prisma.video.findFirst({
     where: {
       id: videoId,
-      ...userVideosWhere(userId),
+      ...(await userVideosWhere(userId)),
     },
     include: {
       channel: true,
@@ -97,7 +97,7 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
       where: {
         tagId: { in: tagIds },
         videoId: { not: videoId },
-        video: userVideosWhere(userId),
+        video: await userVideosWhereWithCategory(userId),
       },
       _count: { videoId: true },
     });
