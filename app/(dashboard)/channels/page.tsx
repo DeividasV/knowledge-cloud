@@ -3,12 +3,21 @@ import { auth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PlaySquare, Users, Trash2 } from "lucide-react";
+import { PlaySquare, Users, Trash2, Clock } from "lucide-react";
 import Link from "next/link";
 import { SearchInput } from "@/components/search-input";
 import { CategoryFilter } from "./channels-client";
 import { AddChannelForm } from "@/components/add-channel-form";
 import { removeChannel } from "@/app/actions/channels";
+import { cn } from "@/lib/utils";
+
+function formatDuration(seconds: number): string {
+  if (seconds <= 0) return "—";
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
 
 export default async function ChannelsPage({
   searchParams,
@@ -32,7 +41,9 @@ export default async function ChannelsPage({
       where,
       include: {
         _count: { select: { videos: true } },
-        videos: { select: { id: true } },
+        videos: {
+          select: { id: true, durationSec: true },
+        },
         categories: true,
       },
       orderBy: { title: "asc" },
@@ -50,19 +61,109 @@ export default async function ChannelsPage({
     where: { users: { some: { id: userId } } },
   });
 
-  // Get unwatched counts per channel
-  const videoIds = channels.flatMap((c) => c.videos.map((v) => v.id));
-  const userVideos = await prisma.userVideo.findMany({
-    where: { userId, videoId: { in: videoIds } },
-    select: { videoId: true, status: true },
-  });
-  const statusMap = new Map(userVideos.map((uv) => [uv.videoId, uv.status]));
+  // Bulk fetch related data
+  const allVideoIds = channels.flatMap((c) => c.videos.map((v) => v.id));
 
-  const channelsWithCounts = channels.map((ch) => {
-    const unwatched = ch.videos.filter(
-      (v) => !statusMap.has(v.id) || statusMap.get(v.id) === "UNWATCHED"
-    ).length;
-    return { ...ch, unwatched };
+  const [userVideos, videoTags] = await Promise.all([
+    prisma.userVideo.findMany({
+      where: { userId, videoId: { in: allVideoIds } },
+      select: { videoId: true, status: true },
+    }),
+    prisma.videoTag.findMany({
+      where: { videoId: { in: allVideoIds } },
+      include: { tag: true },
+    }),
+  ]);
+
+  const statusMap = new Map(userVideos.map((uv) => [uv.videoId, uv.status]));
+  const videoToChannel = new Map<string, string>();
+  for (const ch of channels) {
+    for (const v of ch.videos) {
+      videoToChannel.set(v.id, ch.id);
+    }
+  }
+
+  // Aggregate stats per channel
+  type ChannelStats = {
+    totalDuration: number;
+    watchedDuration: number;
+    totalTagScore: number;
+    watchedTagScore: number;
+    watchedCount: number;
+    unwatchedCount: number;
+  };
+
+  const statsMap = new Map<string, ChannelStats>();
+  const topTagsMap = new Map<string, Map<string, number>>();
+
+  for (const ch of channels) {
+    statsMap.set(ch.id, {
+      totalDuration: 0,
+      watchedDuration: 0,
+      totalTagScore: 0,
+      watchedTagScore: 0,
+      watchedCount: 0,
+      unwatchedCount: 0,
+    });
+    topTagsMap.set(ch.id, new Map());
+  }
+
+  // Process videos for duration and watch counts
+  for (const ch of channels) {
+    const stats = statsMap.get(ch.id)!;
+    for (const v of ch.videos) {
+      const status = statusMap.get(v.id);
+      const isWatched = status === "WATCHED";
+
+      if (v.durationSec) {
+        stats.totalDuration += v.durationSec;
+        if (isWatched) stats.watchedDuration += v.durationSec;
+      }
+
+      if (isWatched) stats.watchedCount++;
+      else if (!status || status === "UNWATCHED" || status === "WATCHING")
+        stats.unwatchedCount++;
+    }
+  }
+
+  // Process videoTags for scores and top tags
+  for (const vt of videoTags) {
+    const channelId = videoToChannel.get(vt.videoId);
+    if (!channelId) continue;
+
+    const stats = statsMap.get(channelId);
+    if (stats) {
+      stats.totalTagScore += vt.score;
+      if (statusMap.get(vt.videoId) === "WATCHED") {
+        stats.watchedTagScore += vt.score;
+      }
+    }
+
+    const tagMap = topTagsMap.get(channelId);
+    if (tagMap) {
+      tagMap.set(vt.tag.name, (tagMap.get(vt.tag.name) || 0) + vt.score);
+    }
+  }
+
+  const channelsWithStats = channels.map((ch) => {
+    const stats = statsMap.get(ch.id)!;
+    const tagMap = topTagsMap.get(ch.id)!;
+    const topTags = Array.from(tagMap.entries())
+      .map(([name, score]) => ({ name, score }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+
+    const watchedPct =
+      ch._count.videos > 0
+        ? Math.round((stats.watchedCount / ch._count.videos) * 100)
+        : 0;
+
+    return {
+      ...ch,
+      stats,
+      topTags,
+      watchedPct,
+    };
   });
 
   return (
@@ -70,7 +171,8 @@ export default async function ChannelsPage({
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Channels</h1>
         <p className="text-muted-foreground mt-1">
-          Your channels and their video counts. ({channels.length} of {totalChannels} shown)
+          Your channels and their video counts. ({channels.length} of{" "}
+          {totalChannels} shown)
         </p>
       </div>
 
@@ -87,11 +189,13 @@ export default async function ChannelsPage({
         currentCategory={categoryFilter || null}
       />
 
-      {channelsWithCounts.length === 0 ? (
+      {channelsWithStats.length === 0 ? (
         <Card className="p-8 text-center">
           <Users className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
           <h3 className="text-lg font-medium">
-            {query || categoryFilter ? "No channels match your filters" : "No channels yet"}
+            {query || categoryFilter
+              ? "No channels match your filters"
+              : "No channels yet"}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
             {query || categoryFilter
@@ -101,8 +205,11 @@ export default async function ChannelsPage({
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {channelsWithCounts.map((channel) => (
-            <Card key={channel.id} className="overflow-hidden hover:shadow-md transition-shadow h-full group relative">
+          {channelsWithStats.map((channel) => (
+            <Card
+              key={channel.id}
+              className="overflow-hidden hover:shadow-md transition-shadow h-full group relative"
+            >
               <Link href={`/channels/${channel.id}`} className="block">
                 <div className="aspect-video bg-muted relative">
                   {channel.thumbnail ? (
@@ -117,25 +224,77 @@ export default async function ChannelsPage({
                     </div>
                   )}
                 </div>
-                <CardContent className="p-4">
-                  <h3 className="font-medium truncate" title={channel.title}>
+                <CardContent className="p-4 space-y-2">
+                  <h3
+                    className="font-medium truncate"
+                    title={channel.title}
+                  >
                     {channel.title}
                   </h3>
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    {channel.categories.map((cat) => (
-                      <Badge key={cat.id} variant="outline" className="text-xs">
-                        {cat.name}
-                      </Badge>
-                    ))}
-                    <Badge variant="secondary" className="text-xs">
-                      {channel._count.videos} videos
-                    </Badge>
-                    {channel.unwatched > 0 && (
-                      <Badge variant="default" className="text-xs">
-                        {channel.unwatched} unwatched
-                      </Badge>
-                    )}
+
+                  {/* Categories */}
+                  {channel.categories.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {channel.categories.map((cat) => (
+                        <Badge
+                          key={cat.id}
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0"
+                        >
+                          {cat.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Top tags */}
+                  {channel.topTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {channel.topTags.map((tag) => (
+                        <Badge
+                          key={tag.name}
+                          variant="secondary"
+                          className="text-[10px] px-1.5 py-0 bg-primary/10 hover:bg-primary/20 transition-colors"
+                        >
+                          {tag.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Progress */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        {channel.stats.watchedCount}/{channel._count.videos}{" "}
+                        watched
+                      </span>
+                      <span className="flex items-center gap-0.5">
+                        <Clock className="h-3 w-3" />
+                        {formatDuration(channel.stats.totalDuration)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all",
+                          channel.watchedPct === 100
+                            ? "bg-emerald-500"
+                            : channel.watchedPct >= 50
+                            ? "bg-blue-500"
+                            : "bg-amber-500"
+                        )}
+                        style={{ width: `${channel.watchedPct}%` }}
+                      />
+                    </div>
                   </div>
+
+                  {/* Unwatched pill */}
+                  {channel.stats.unwatchedCount > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      {channel.stats.unwatchedCount} unwatched
+                    </div>
+                  )}
                 </CardContent>
               </Link>
               <form
