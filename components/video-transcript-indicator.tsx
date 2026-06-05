@@ -33,7 +33,7 @@ export function VideoTranscriptIndicator({
   if (transcript) {
     return (
       <span
-        className="inline-flex items-center text-emerald-500"
+        className="inline-flex items-center justify-center h-5 w-5 rounded text-emerald-500"
         title="Transcript available"
       >
         <FileText className="h-3.5 w-3.5" />
@@ -46,7 +46,7 @@ export function VideoTranscriptIndicator({
       onClick={handleFetch}
       disabled={isPending}
       className={cn(
-        "inline-flex items-center text-muted-foreground hover:text-foreground transition-colors",
+        "inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
         isPending && "opacity-50 cursor-not-allowed"
       )}
       title={isPending ? "Fetching transcript..." : "Fetch transcript"}

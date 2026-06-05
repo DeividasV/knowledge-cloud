@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { PlaySquare, ArrowRight } from "lucide-react";
 import { VideoStatusToggle } from "./video-status-toggle";
-import { VideoTags } from "./video-tags";
+import { VideoTags, VideoTagAction } from "./video-tags";
 import { VideoTranscriptIndicator } from "./video-transcript-indicator";
 import { VideoStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -103,18 +103,29 @@ export function VideoCard({
           <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
         </div>
         <VideoStatusToggle videoId={video.id} currentStatus={video.status} />
-        <VideoTags
-          videoId={video.id}
-          tags={video.videoTags.map((vt) => ({
-            id: vt.id,
-            name: vt.name,
-            score: vt.score,
-          }))}
-        />
-        <VideoTranscriptIndicator
-          videoId={video.id}
-          transcript={video.transcript}
-        />
+        <div className="flex items-start gap-1.5">
+          <div className="flex-1 min-w-0">
+            <VideoTags
+              videoId={video.id}
+              tags={video.videoTags.map((vt) => ({
+                id: vt.id,
+                name: vt.name,
+                score: vt.score,
+              }))}
+              hideActions
+            />
+          </div>
+          <div className="flex items-center gap-0 shrink-0">
+            <VideoTagAction
+              videoId={video.id}
+              hasTags={video.videoTags.length > 0}
+            />
+            <VideoTranscriptIndicator
+              videoId={video.id}
+              transcript={video.transcript}
+            />
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

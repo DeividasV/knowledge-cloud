@@ -395,11 +395,31 @@ export async function generateVideoTags(videoId: string) {
 
   if (!video) throw new Error("Video not found");
 
+  // Auto-fetch transcript if missing
+  let transcript = video.transcript;
+  if (!transcript) {
+    try {
+      const result = await fetchVideoTranscript(videoId);
+      if (result) {
+        transcript = result.text;
+        await prisma.video.update({
+          where: { id: videoId },
+          data: {
+            transcript: result.text,
+            transcriptFetchedAt: new Date(),
+          },
+        });
+      }
+    } catch {
+      // Proceed without transcript
+    }
+  }
+
   const { method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo } = await getUserTagExtractionConfig();
 
   let extracted;
   try {
-    extracted = await extractVideoTags(video.title, video.transcript, method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo);
+    extracted = await extractVideoTags(video.title, transcript, method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo);
   } catch (err: any) {
     if (err?.message?.includes("credits depleted")) {
       throw err;

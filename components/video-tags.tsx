@@ -39,20 +39,12 @@ function getStrongTags(tags: ScoredTag[]): ScoredTag[] {
 export function VideoTags({
   videoId,
   tags,
+  hideActions = false,
 }: {
   videoId: string;
   tags: ScoredTag[];
+  hideActions?: boolean;
 }) {
-  const [isPending, startTransition] = useTransition();
-  const router = useRouter();
-
-  const handleGenerate = () => {
-    startTransition(async () => {
-      await generateVideoTags(videoId);
-      router.refresh();
-    });
-  };
-
   const strong = getStrongTags(tags);
 
   return (
@@ -72,43 +64,67 @@ export function VideoTags({
         </Link>
       ))}
 
-      {tags.length === 0 ? (
-        <Button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleGenerate();
-          }}
-          disabled={isPending}
-          variant="ghost"
-          size="sm"
-          className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
-        >
-          {isPending ? (
-            <Loader2 className="h-3 w-3 animate-spin mr-1" />
-          ) : (
-            <Sparkles className="h-3 w-3 mr-1" />
-          )}
-          Generate tags
-        </Button>
-      ) : (
-        <Button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleGenerate();
-          }}
-          disabled={isPending}
-          variant="ghost"
-          size="sm"
-          title="Regenerate tags"
-          className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-        >
-          {isPending ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3 w-3" />
-          )}
-        </Button>
+      {!hideActions && tags.length === 0 && (
+        <VideoTagAction videoId={videoId} hasTags={false} />
+      )}
+      {!hideActions && tags.length > 0 && (
+        <VideoTagAction videoId={videoId} hasTags={true} />
       )}
     </div>
+  );
+}
+
+export function VideoTagAction({
+  videoId,
+  hasTags,
+}: {
+  videoId: string;
+  hasTags: boolean;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  const handleGenerate = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    startTransition(async () => {
+      await generateVideoTags(videoId);
+      router.refresh();
+    });
+  };
+
+  if (!hasTags) {
+    return (
+      <Button
+        onClick={handleGenerate}
+        disabled={isPending}
+        variant="ghost"
+        size="sm"
+        className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+      >
+        {isPending ? (
+          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+        ) : (
+          <Sparkles className="h-3 w-3 mr-1" />
+        )}
+        Generate tags
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      onClick={handleGenerate}
+      disabled={isPending}
+      variant="ghost"
+      size="sm"
+      title="Regenerate tags"
+      className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+    >
+      {isPending ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <RefreshCw className="h-3 w-3" />
+      )}
+    </Button>
   );
 }
