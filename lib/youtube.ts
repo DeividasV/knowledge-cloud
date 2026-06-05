@@ -153,6 +153,49 @@ export async function fetchVideoById(videoId: string) {
   return data.items?.[0] ?? null;
 }
 
+/**
+ * Fallback video metadata fetcher using noembed (no API key required).
+ * Returns data shaped like the YouTube Data API response.
+ */
+export async function fetchVideoByIdFallback(videoId: string): Promise<any> {
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`, {
+    next: { revalidate: 0 },
+  });
+
+  if (!res.ok) {
+    throw new Error(`noembed fetch failed: ${res.status}`);
+  }
+
+  const data = await res.json();
+
+  // Try to extract channel identifier from author_url
+  let channelId: string | null = null;
+  const authorUrl = data.author_url || "";
+  const channelMatch = authorUrl.match(/youtube\.com\/channel\/(UC[a-zA-Z0-9_-]{22})/);
+  if (channelMatch) {
+    channelId = channelMatch[1];
+  }
+
+  return {
+    snippet: {
+      title: data.title || "Unknown title",
+      description: "",
+      thumbnails: {
+        medium: { url: data.thumbnail_url || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg` },
+        default: { url: data.thumbnail_url || `https://i.ytimg.com/vi/${videoId}/default.jpg` },
+      },
+      publishedAt: new Date().toISOString(),
+      channelId,
+      channelTitle: data.author_name || "Unknown channel",
+      categoryId: undefined,
+    },
+    contentDetails: {
+      duration: "",
+    },
+  };
+}
+
 // ── Utilities ─────────────────────────────────────────────────────────
 
 export function parseDuration(isoDuration: string): number {

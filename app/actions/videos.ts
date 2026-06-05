@@ -12,6 +12,7 @@ import {
 import {
   extractVideoId,
   fetchVideoById,
+  fetchVideoByIdFallback,
   fetchChannelDetailsById,
   parseDuration,
   getCategoryFromTopics,
@@ -1059,7 +1060,18 @@ export async function addVideoByUrl(url: string, standalone = false) {
     return { success: true, videoId, alreadyExisted: true };
   }
 
-  const videoData = await fetchVideoById(videoId);
+  let videoData;
+  let usedFallback = false;
+  try {
+    videoData = await fetchVideoById(videoId);
+  } catch (e: any) {
+    if (e?.message?.includes("YOUTUBE_API_KEY is not configured")) {
+      videoData = await fetchVideoByIdFallback(videoId);
+      usedFallback = true;
+    } else {
+      throw e;
+    }
+  }
   if (!videoData) throw new Error("Video not found on YouTube");
 
   const snippet = videoData.snippet;
@@ -1099,6 +1111,19 @@ export async function addVideoByUrl(url: string, standalone = false) {
   }
 
   // Non-standalone: create/link channel as before
+  if (usedFallback) {
+    throw new Error(
+      "YouTube API key is required to subscribe to a channel. " +
+        "Check 'Add without subscribing to channel' to save it as a standalone video."
+    );
+  }
+  if (!channelId) {
+    throw new Error(
+      "Could not determine the video's channel. " +
+        "Check 'Add without subscribing to channel' to save it as a standalone video."
+    );
+  }
+
   const channelExists = await prisma.channel.findUnique({
     where: { id: channelId },
     select: { id: true },
