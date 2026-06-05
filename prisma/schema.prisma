@@ -53,6 +53,7 @@ model User {
   geminiModel            String      @default("gemini-2.5-flash")
   ollamaMaxChunks        Int         @default(5)
   tagLanguage            String      @default("en")
+  selectedCategory       String?
   createdAt              DateTime    @default(now())
 }
 
