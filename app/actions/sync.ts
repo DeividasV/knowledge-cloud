@@ -9,6 +9,7 @@ import {
   parseDuration,
   getCategoryFromTopics,
   YOUTUBE_CATEGORY_MAP,
+  hasYoutubeApiKey,
 } from "@/lib/youtube";
 
 async function setChannelCategories(channelId: string, categoryNames: string[]) {
@@ -39,6 +40,13 @@ export async function syncChannelVideos(channelId: string) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) throw new Error("Not authenticated");
+
+  if (!hasYoutubeApiKey()) {
+    throw new Error(
+      "YouTube API key is required to sync channel videos. " +
+        "Add YOUTUBE_API_KEY to your .env file and restart the dev server."
+    );
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: userId },

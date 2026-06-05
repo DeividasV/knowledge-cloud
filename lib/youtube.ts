@@ -6,6 +6,10 @@ function apiKeyParam() {
   return new URLSearchParams({ key: API_KEY });
 }
 
+export function hasYoutubeApiKey(): boolean {
+  return !!API_KEY;
+}
+
 // ── URL parsers ───────────────────────────────────────────────────────
 
 const CHANNEL_URL_PATTERNS = [

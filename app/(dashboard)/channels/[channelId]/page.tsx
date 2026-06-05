@@ -8,6 +8,7 @@ import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
 import { markAllChannelVideosAsWatched } from "@/app/actions/videos";
 import { syncChannelVideos } from "@/app/actions/sync";
+import { hasYoutubeApiKey } from "@/lib/youtube";
 import { PendingButton } from "@/components/pending-button";
 import { ChannelCategoryManager } from "@/components/channel-category-manager";
 import { ChannelTranscriptFetch } from "@/components/channel-transcript-fetch";
@@ -152,6 +153,7 @@ export default async function ChannelPage({
   const returnUrl = `/channels/${channelId}${returnSearch.toString() ? "?" + returnSearch.toString() : ""}`;
 
   const markAllAsWatched = markAllChannelVideosAsWatched.bind(null, channelId);
+  const apiKeyAvailable = hasYoutubeApiKey();
 
   return (
     <div className="space-y-6">
@@ -176,12 +178,22 @@ export default async function ChannelPage({
             videoCount={counts.all}
             missingCount={counts.missingTranscripts}
           />
-          <form action={syncChannelVideos.bind(null, channelId)}>
-            <PendingButton variant="outline" size="sm" pendingText="Syncing...">
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Sync videos
-            </PendingButton>
-          </form>
+          {apiKeyAvailable ? (
+            <form action={syncChannelVideos.bind(null, channelId)}>
+              <PendingButton variant="outline" size="sm" pendingText="Syncing...">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Sync videos
+              </PendingButton>
+            </form>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-md border border-dashed px-2.5 py-1 text-xs text-muted-foreground"
+              title="Add YOUTUBE_API_KEY to your .env file to enable sync"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Sync unavailable
+            </span>
+          )}
           <form action={markAllAsWatched}>
             <PendingButton
               variant="outline"
