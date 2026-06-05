@@ -13,6 +13,7 @@ import {
   getOllamaMaxChunksSetting,
   getTagLanguageSetting,
   removeShortVideos,
+  getShortVideoCount,
 } from "@/app/actions/videos";
 import { getUserChannels, removeChannel } from "@/app/actions/channels";
 import { syncChannelVideos } from "@/app/actions/sync";
@@ -58,6 +59,7 @@ export default async function SettingsPage() {
   const geminiModel = await getGeminiModelSetting();
   const ollamaMaxChunks = await getOllamaMaxChunksSetting();
   const tagLanguage = await getTagLanguageSetting();
+  const shortVideoCount = await getShortVideoCount();
 
   const videosWithoutTranscript = await prisma.video.findMany({
     where: {
@@ -143,17 +145,29 @@ export default async function SettingsPage() {
           <SyncSettings initialMaxVideos={maxVideos} />
           <DurationSettings initialMinDuration={minDuration} />
 
-          <form action={removeShortVideos}>
-            <PendingButton
-              size="sm"
-              variant="outline"
-              pendingText="Removing..."
-              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          <div className="flex items-center gap-3">
+            <form action={removeShortVideos}>
+              <PendingButton
+                size="sm"
+                variant="outline"
+                pendingText="Removing..."
+                disabled={shortVideoCount === 0}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <Scissors className="mr-2 h-4 w-4" />
+                Remove all videos shorter than {minDuration}s
+              </PendingButton>
+            </form>
+            <span
+              className={`text-sm font-medium tabular-nums ${
+                shortVideoCount > 0
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              }`}
             >
-              <Scissors className="mr-2 h-4 w-4" />
-              Remove all videos shorter than {minDuration}s
-            </PendingButton>
-          </form>
+              {shortVideoCount} found
+            </span>
+          </div>
         </CardContent>
       </Card>
 

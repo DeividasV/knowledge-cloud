@@ -1213,6 +1213,25 @@ export async function removeVideo(videoId: string) {
   revalidatePath("/videos/[videoId]");
 }
 
+export async function getShortVideoCount(): Promise<number> {
+  const userId = await getUserId();
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { minVideoDurationSec: true },
+  });
+  const minDuration = user?.minVideoDurationSec ?? 300;
+
+  const count = await prisma.video.count({
+    where: {
+      ...userVideosWhere(userId),
+      durationSec: { not: null, lte: minDuration },
+    },
+  });
+
+  return count;
+}
+
 export async function removeShortVideos() {
   const userId = await getUserId();
 
