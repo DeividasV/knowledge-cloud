@@ -111,6 +111,82 @@ export async function resolveChannel(input: string) {
   return fetchChannelDetailsByHandle(identifier.value);
 }
 
+// ── Fallback: scrape YouTube channel page (no API key) ─────────────────
+
+async function scrapeChannelPage(url: string): Promise<any> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+    next: { revalidate: 0 },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch channel page: ${res.status}`);
+  }
+
+  const html = await res.text();
+  const match = html.match(/var ytInitialData = ({.+?});<\/script>/);
+  if (!match) {
+    throw new Error("Could not parse channel page metadata");
+  }
+
+  const data = JSON.parse(match[1]);
+  const meta = data.metadata?.channelMetadataRenderer;
+  if (!meta) {
+    throw new Error("Channel metadata not found on page");
+  }
+
+  const channelId = meta.externalId as string;
+  const thumbnails = meta.avatar?.thumbnails || [];
+  const thumbnail = thumbnails.length > 0 ? thumbnails[thumbnails.length - 1].url : null;
+
+  // Derive uploads playlist ID from channel ID (UC... → UU...)
+  const uploadsPlaylistId = channelId.startsWith("UC")
+    ? "UU" + channelId.slice(2)
+    : null;
+
+  return {
+    items: [{
+      id: channelId,
+      snippet: {
+        title: meta.title || "Unknown channel",
+        thumbnails: {
+          medium: { url: thumbnail },
+          default: { url: thumbnail },
+        },
+      },
+      contentDetails: {
+        relatedPlaylists: {
+          uploads: uploadsPlaylistId,
+        },
+      },
+      statistics: {
+        subscriberCount: null,
+        videoCount: null,
+      },
+      topicDetails: {
+        topicIds: [] as string[],
+      },
+    }],
+  };
+}
+
+export async function resolveChannelFallback(input: string) {
+  const identifier = extractChannelIdentifier(input);
+  if (!identifier) throw new Error("Invalid channel URL or identifier");
+
+  let pageUrl: string;
+  if (identifier.type === "id") {
+    pageUrl = `https://www.youtube.com/channel/${identifier.value}`;
+  } else {
+    pageUrl = `https://www.youtube.com/@${identifier.value}`;
+  }
+
+  return scrapeChannelPage(pageUrl);
+}
+
 export async function fetchPlaylistItems(playlistId: string, pageToken?: string) {
   const params = apiKeyParam();
   params.set("part", "snippet");

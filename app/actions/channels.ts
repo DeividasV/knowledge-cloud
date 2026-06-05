@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import {
   resolveChannel,
+  resolveChannelFallback,
   fetchChannelDetailsById,
   getCategoryFromTopics,
 } from "@/lib/youtube";
@@ -80,7 +81,17 @@ async function upsertChannelFromApiItem(ch: any) {
 export async function addChannelByUrl(url: string) {
   const userId = await getUserId();
 
-  const data = await resolveChannel(url);
+  let data;
+  try {
+    data = await resolveChannel(url);
+  } catch (e: any) {
+    if (e?.message?.includes("YOUTUBE_API_KEY is not configured")) {
+      data = await resolveChannelFallback(url);
+    } else {
+      throw e;
+    }
+  }
+
   const ch = data.items?.[0];
   if (!ch) throw new Error("Channel not found");
 
