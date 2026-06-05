@@ -1191,3 +1191,31 @@ export async function removeVideo(videoId: string) {
   revalidatePath("/channels/[channelId]");
   revalidatePath("/videos/[videoId]");
 }
+
+export async function removeShortVideos() {
+  const userId = await getUserId();
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { minVideoDurationSec: true },
+  });
+  const minDuration = user?.minVideoDurationSec ?? 300;
+
+  // Find short videos from user's visible channels
+  const shortVideos = await prisma.video.findMany({
+    where: {
+      ...userVideosWhere(userId),
+      durationSec: { not: null, lte: minDuration },
+    },
+    select: { id: true },
+  });
+
+  if (shortVideos.length > 0) {
+    await prisma.video.deleteMany({
+      where: { id: { in: shortVideos.map((v) => v.id) } },
+    });
+  }
+
+  revalidatePath("/videos");
+  revalidatePath("/channels/[channelId]");
+}

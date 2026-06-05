@@ -1,7 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   getTranscriptStats,
@@ -13,6 +12,7 @@ import {
   getGeminiModelSetting,
   getOllamaMaxChunksSetting,
   getTagLanguageSetting,
+  removeShortVideos,
 } from "@/app/actions/videos";
 import { getUserChannels, removeChannel } from "@/app/actions/channels";
 import { syncChannelVideos } from "@/app/actions/sync";
@@ -32,6 +32,7 @@ import {
   CheckCircle,
   Trash2,
   Clock,
+  Scissors,
 } from "lucide-react";
 
 export default async function SettingsPage() {
@@ -141,6 +142,18 @@ export default async function SettingsPage() {
 
           <SyncSettings initialMaxVideos={maxVideos} />
           <DurationSettings initialMinDuration={minDuration} />
+
+          <form action={removeShortVideos}>
+            <PendingButton
+              size="sm"
+              variant="outline"
+              pendingText="Removing..."
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Scissors className="mr-2 h-4 w-4" />
+              Remove all videos shorter than {minDuration}s
+            </PendingButton>
+          </form>
         </CardContent>
       </Card>
 
