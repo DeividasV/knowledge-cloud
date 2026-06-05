@@ -10,6 +10,8 @@ import {
   getCategoryFromTopics,
   YOUTUBE_CATEGORY_MAP,
   hasYoutubeApiKey,
+  fetchChannelVideosRss,
+  fetchChannelVideosScrape,
 } from "@/lib/youtube";
 
 async function setChannelCategories(channelId: string, categoryNames: string[]) {
@@ -41,13 +43,6 @@ export async function syncChannelVideos(channelId: string) {
   const userId = session?.user?.id;
   if (!userId) throw new Error("Not authenticated");
 
-  if (!hasYoutubeApiKey()) {
-    throw new Error(
-      "YouTube API key is required to sync channel videos. " +
-        "Add YOUTUBE_API_KEY to your .env file and restart the dev server."
-    );
-  }
-
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { maxVideosPerChannelSync: true, minVideoDurationSec: true },
@@ -64,26 +59,102 @@ export async function syncChannelVideos(channelId: string) {
     throw new Error("Channel has no uploads playlist");
   }
 
-  const allItems: any[] = [];
-  let pageToken: string | undefined;
+  let videoDetails: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    thumbnail?: string;
+    durationSec: number | null;
+    publishedAt: Date;
+    category?: string;
+  }> = [];
 
-  do {
-    const data = await fetchPlaylistItems(channel.uploadsPlaylistId, pageToken);
-    allItems.push(...(data.items || []));
-    pageToken = data.nextPageToken;
-  } while (pageToken && allItems.length < maxVideos);
+  if (hasYoutubeApiKey()) {
+    // ── API path ──────────────────────────────────────────────────────
+    const allItems: any[] = [];
+    let pageToken: string | undefined;
 
-  const videoIds = allItems.map((item: any) => item.snippet.resourceId.videoId).filter(Boolean);
+    do {
+      const data = await fetchPlaylistItems(channel.uploadsPlaylistId, pageToken);
+      allItems.push(...(data.items || []));
+      pageToken = data.nextPageToken;
+    } while (pageToken && allItems.length < maxVideos);
 
-  const videoDetails: any[] = [];
-  for (let i = 0; i < videoIds.length; i += 50) {
-    const batch = videoIds.slice(i, i + 50);
-    const data = await fetchVideoDetails(batch);
-    videoDetails.push(...(data.items || []));
+    const videoIds = allItems.map((item: any) => item.snippet.resourceId.videoId).filter(Boolean);
+
+    const apiDetails: any[] = [];
+    for (let i = 0; i < videoIds.length; i += 50) {
+      const batch = videoIds.slice(i, i + 50);
+      const data = await fetchVideoDetails(batch);
+      apiDetails.push(...(data.items || []));
+    }
+
+    for (const v of apiDetails) {
+      const durationSec = parseDuration(v.contentDetails?.duration || "");
+      const catId = v.snippet?.categoryId ? parseInt(v.snippet.categoryId, 10) : undefined;
+      videoDetails.push({
+        id: v.id,
+        title: v.snippet.title,
+        description: v.snippet.description,
+        thumbnail: v.snippet.thumbnails?.medium?.url || v.snippet.thumbnails?.default?.url,
+        durationSec,
+        publishedAt: new Date(v.snippet.publishedAt),
+        category: catId ? YOUTUBE_CATEGORY_MAP[catId] : undefined,
+      });
+    }
+  } else {
+    // ── No-auth path: RSS + page scrape ───────────────────────────────
+    let scraped: Array<{ id: string; title: string; description?: string; thumbnail?: string; publishedAt?: string }> = [];
+
+    // Try RSS first (best data quality, ~15 videos)
+    try {
+      const rssVideos = await fetchChannelVideosRss(channelId);
+      scraped.push(...rssVideos);
+    } catch {
+      // RSS failed, continue with page scrape
+    }
+
+    // Try page scrape for more videos (~30 videos)
+    try {
+      const pageVideos = await fetchChannelVideosScrape(channelId);
+      // Merge: page scrape fills in videos RSS missed
+      const existingIds = new Set(scraped.map((v) => v.id));
+      for (const v of pageVideos) {
+        if (!existingIds.has(v.id)) {
+          scraped.push(v);
+        }
+      }
+    } catch {
+      // Page scrape failed
+    }
+
+    if (scraped.length === 0) {
+      throw new Error(
+        "Could not fetch channel videos. " +
+          "Try adding a YouTube Data API key for reliable syncing."
+      );
+    }
+
+    // Apply max videos limit
+    if (scraped.length > maxVideos) {
+      scraped = scraped.slice(0, maxVideos);
+    }
+
+    for (const v of scraped) {
+      videoDetails.push({
+        id: v.id,
+        title: v.title,
+        description: v.description,
+        thumbnail: v.thumbnail || `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,
+        durationSec: null,
+        publishedAt: v.publishedAt ? new Date(v.publishedAt) : new Date(),
+        category: undefined,
+      });
+    }
   }
 
   const existingVideos = await prisma.video.findMany({
-    where: { id: { in: videoIds } },
+    where: { id: { in: videoDetails.map((v) => v.id) } },
     select: { id: true },
   });
   const existingIds = new Set(existingVideos.map((v) => v.id));
@@ -92,30 +163,27 @@ export async function syncChannelVideos(channelId: string) {
   const shortsToDelete: string[] = [];
 
   for (const v of videoDetails) {
-    const durationSec = parseDuration(v.contentDetails.duration);
-
-    if (durationSec > 0 && durationSec <= minDuration) {
+    // Shorts filtering only works when we have duration
+    if (v.durationSec !== null && v.durationSec > 0 && v.durationSec <= minDuration) {
       if (existingIds.has(v.id)) {
         shortsToDelete.push(v.id);
       }
       continue;
     }
 
-    const catId = v.snippet?.categoryId ? parseInt(v.snippet.categoryId, 10) : undefined;
-    const category = catId ? YOUTUBE_CATEGORY_MAP[catId] : undefined;
-    if (category) {
-      categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+    if (v.category) {
+      categoryCounts.set(v.category, (categoryCounts.get(v.category) || 0) + 1);
     }
 
     const data = {
       id: v.id,
-      title: v.snippet.title,
-      description: v.snippet.description,
-      thumbnail: v.snippet.thumbnails?.medium?.url || v.snippet.thumbnails?.default?.url,
-      durationSec,
-      publishedAt: new Date(v.snippet.publishedAt),
+      title: v.title,
+      description: v.description,
+      thumbnail: v.thumbnail,
+      durationSec: v.durationSec,
+      publishedAt: v.publishedAt,
       channelId: channelId,
-      category,
+      category: v.category,
     };
 
     if (existingIds.has(v.id)) {

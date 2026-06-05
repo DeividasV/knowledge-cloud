@@ -276,6 +276,116 @@ export async function fetchVideoByIdFallback(videoId: string): Promise<any> {
   };
 }
 
+// ── No-auth channel video fetchers ────────────────────────────────────
+
+interface ScrapedVideo {
+  id: string;
+  title: string;
+  description?: string;
+  thumbnail?: string;
+  publishedAt?: string;
+}
+
+export async function fetchChannelVideosRss(channelId: string): Promise<ScrapedVideo[]> {
+  const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+  const res = await fetch(rssUrl, {
+    headers: { "User-Agent": "Mozilla/5.0" },
+    next: { revalidate: 0 },
+  });
+
+  if (!res.ok) {
+    throw new Error(`RSS fetch failed: ${res.status}`);
+  }
+
+  const xml = await res.text();
+  const videos: ScrapedVideo[] = [];
+
+  // Parse entries with regex (simple and reliable for RSS)
+  const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
+  let match;
+  while ((match = entryRegex.exec(xml)) !== null) {
+    const entry = match[1];
+    const idMatch = entry.match(/<yt:videoId>([^<]+)<\/yt:videoId>/);
+    const titleMatch = entry.match(/<title>([^<]+)<\/title>/);
+    const publishedMatch = entry.match(/<published>([^<]+)<\/published>/);
+    const thumbMatch = entry.match(/<media:thumbnail url="([^"]+)"/);
+    const descMatch = entry.match(/<media:description>([\s\S]*?)<\/media:description>/);
+
+    if (idMatch && titleMatch) {
+      videos.push({
+        id: idMatch[1],
+        title: titleMatch[1],
+        publishedAt: publishedMatch ? publishedMatch[1] : undefined,
+        thumbnail: thumbMatch ? thumbMatch[1] : undefined,
+        description: descMatch ? descMatch[1] : undefined,
+      });
+    }
+  }
+
+  return videos;
+}
+
+export async function fetchChannelVideosScrape(channelId: string): Promise<ScrapedVideo[]> {
+  const pageUrl = `https://www.youtube.com/channel/${channelId}/videos`;
+  const res = await fetch(pageUrl, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Cookie": "CONSENT=YES+cb",
+    },
+    next: { revalidate: 0 },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Page scrape failed: ${res.status}`);
+  }
+
+  const html = await res.text();
+  const scriptMatch = html.match(/var ytInitialData = ({.+?});<\/script>/);
+  if (!scriptMatch) {
+    throw new Error("Could not find ytInitialData on channel page");
+  }
+
+  const data = JSON.parse(scriptMatch[1]);
+  const tabs = data.contents?.twoColumnBrowseResultsRenderer?.tabs || [];
+  const videos: ScrapedVideo[] = [];
+
+  for (const tab of tabs) {
+    const tr = tab.tabRenderer;
+    if (!tr?.selected) continue;
+
+    const items = tr.content?.richGridRenderer?.contents || [];
+    for (const item of items) {
+      const lockup = item.richItemRenderer?.content?.lockupViewModel;
+      if (!lockup) continue;
+
+      // Extract video ID from thumbnail URL
+      const sources = lockup.contentImage?.thumbnailViewModel?.image?.sources || [];
+      let videoId: string | null = null;
+      for (const src of sources) {
+        const vidMatch = src.url?.match(/\/vi\/([a-zA-Z0-9_-]{11})\//);
+        if (vidMatch) {
+          videoId = vidMatch[1];
+          break;
+        }
+      }
+
+      // Extract title
+      const title = lockup.metadata?.lockupMetadataViewModel?.title?.content;
+
+      if (videoId && title) {
+        videos.push({
+          id: videoId,
+          title,
+          thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+        });
+      }
+    }
+  }
+
+  return videos;
+}
+
 // ── Utilities ─────────────────────────────────────────────────────────
 
 export function parseDuration(isoDuration: string): number {
