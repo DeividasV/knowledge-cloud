@@ -72,6 +72,7 @@ model Channel {
   uploadsPlaylistId String?
   subscriberCount   Int?
   videoCount        Int?
+  viewCount         Int?
   videos            Video[]
   users             User[]
   categories        Category[]
@@ -91,6 +92,9 @@ model Video {
   thumbnail           String?
   durationSec         Int?
   viewCount           Int?
+  likeCount           Int?
+  commentCount        Int?
+  youtubeTags         String?
   publishedAt         DateTime
   channelId           String?
   channel             Channel?    @relation(fields: [channelId], references: [id])

@@ -58,6 +58,7 @@ async function upsertChannelFromApiItem(ch: any) {
     uploadsPlaylistId,
     subscriberCount: ch.statistics?.subscriberCount ? parseInt(ch.statistics.subscriberCount, 10) : null,
     videoCount: ch.statistics?.videoCount ? parseInt(ch.statistics.videoCount, 10) : null,
+    viewCount: ch.statistics?.viewCount ? parseInt(ch.statistics.viewCount, 10) : null,
   };
 
   const existing = await prisma.channel.findUnique({

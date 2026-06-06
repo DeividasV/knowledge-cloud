@@ -18,6 +18,13 @@ function formatDuration(seconds: number): string {
   return `${mins}m`;
 }
 
+function formatNumber(n: number | null | undefined): string {
+  if (n == null) return "—";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString();
+}
+
 export default async function ChannelsPage({
   searchParams,
 }: {
@@ -231,6 +238,16 @@ export default async function ChannelsPage({
                   >
                     {channel.title}
                   </h3>
+
+                  {/* Subscriber / video counts */}
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    {channel.subscriberCount != null && (
+                      <span>{formatNumber(channel.subscriberCount)} subs</span>
+                    )}
+                    {channel.videoCount != null && (
+                      <span>{formatNumber(channel.videoCount)} videos</span>
+                    )}
+                  </div>
 
                   {/* Categories */}
                   {channel.categories.length > 0 && (

@@ -16,6 +16,9 @@ import {
   FileText,
   Sparkles,
   Trash2,
+  Eye,
+  ThumbsUp,
+  MessageCircle,
 } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
 import { VideoStatus } from "@/lib/types";
@@ -23,6 +26,13 @@ import { generateVideoTags, removeVideo } from "@/app/actions/videos";
 import { TagReportClient } from "@/components/tag-report-client";
 import { VideoTranscriptStatic } from "@/components/video-transcript-static";
 import { userVideosWhere, userVideosWhereWithCategory } from "@/lib/video-access";
+
+function formatNumber(n: number | null | undefined): string {
+  if (n == null) return "—";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString();
+}
 
 interface PageProps {
   params: Promise<{ videoId: string }>;
@@ -179,6 +189,24 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
                   {durationText}
                 </span>
               )}
+              {video.viewCount != null && (
+                <span className="inline-flex items-center gap-1">
+                  <Eye className="h-3.5 w-3.5" />
+                  {formatNumber(video.viewCount)} views
+                </span>
+              )}
+              {video.likeCount != null && (
+                <span className="inline-flex items-center gap-1">
+                  <ThumbsUp className="h-3.5 w-3.5" />
+                  {formatNumber(video.likeCount)}
+                </span>
+              )}
+              {video.commentCount != null && (
+                <span className="inline-flex items-center gap-1">
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  {formatNumber(video.commentCount)}
+                </span>
+              )}
               {video.category && (
                 <Badge variant="secondary" className="text-xs">
                   {video.category}
@@ -248,6 +276,51 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
               tags={tags}
               tagCounts={Object.fromEntries(tagCounts)}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Description */}
+      {video.description && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Description
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
+              {video.description}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* YouTube Tags */}
+      {video.youtubeTags && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Tag className="h-5 w-5 text-primary" />
+              YouTube Tags
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {(() => {
+                try {
+                  const ytTags = JSON.parse(video.youtubeTags) as string[];
+                  return ytTags.map((t) => (
+                    <Badge key={t} variant="outline" className="text-xs">
+                      {t}
+                    </Badge>
+                  ));
+                } catch {
+                  return null;
+                }
+              })()}
+            </div>
           </CardContent>
         </Card>
       )}

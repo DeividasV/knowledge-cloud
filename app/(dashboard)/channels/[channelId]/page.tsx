@@ -15,6 +15,9 @@ import {
   Tag,
   Clock,
   Hash,
+  Users,
+  BarChart3,
+  CalendarClock,
 } from "lucide-react";
 import { VideoStatus } from "@/lib/types";
 import { Pagination } from "@/components/pagination";
@@ -36,6 +39,13 @@ function formatDuration(seconds: number): string {
   const mins = Math.floor((seconds % 3600) / 60);
   if (hours > 0) return `${hours}h ${mins}m`;
   return `${mins}m`;
+}
+
+function formatNumber(n: number | null | undefined): string {
+  if (n == null) return "—";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString();
 }
 
 function resolvePageSize(sizeStr?: string): number {
@@ -234,6 +244,8 @@ export default async function ChannelPage({
           </h1>
           <p className="text-muted-foreground mt-1">
             {counts.all} videos · {counts.unwatched} unwatched
+            {channel.subscriberCount != null ? ` · ${formatNumber(channel.subscriberCount)} subs` : ""}
+            {channel.videoCount != null ? ` · ${formatNumber(channel.videoCount)} total videos` : ""}
             {channel.categories.length > 0
               ? ` · ${channel.categories.map((c) => c.name).join(", ")}`
               : ""}
@@ -312,6 +324,21 @@ export default async function ChannelPage({
           value={watchedTagScore.toFixed(1)}
           icon={Eye}
           valueClass="text-emerald-600"
+        />
+        <StatCard
+          label="Subscribers"
+          value={formatNumber(channel.subscriberCount)}
+          icon={Users}
+        />
+        <StatCard
+          label="Channel Videos"
+          value={formatNumber(channel.videoCount)}
+          icon={BarChart3}
+        />
+        <StatCard
+          label="Last Sync"
+          value={channel.lastSyncedAt ? new Date(channel.lastSyncedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—"}
+          icon={CalendarClock}
         />
       </div>
 

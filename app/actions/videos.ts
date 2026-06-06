@@ -1127,6 +1127,7 @@ export async function addVideoByUrl(url: string) {
               uploadsPlaylistId,
               subscriberCount: ch.statistics?.subscriberCount ? parseInt(ch.statistics.subscriberCount, 10) : null,
               videoCount: ch.statistics?.videoCount ? parseInt(ch.statistics.videoCount, 10) : null,
+              viewCount: ch.statistics?.viewCount ? parseInt(ch.statistics.viewCount, 10) : null,
             },
           });
 
@@ -1158,6 +1159,7 @@ export async function addVideoByUrl(url: string) {
     }
   }
 
+  const tags = snippet.tags;
   await prisma.video.create({
     data: {
       id: videoId,
@@ -1166,6 +1168,9 @@ export async function addVideoByUrl(url: string) {
       thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url,
       durationSec: parseDuration(contentDetails.duration),
       viewCount: videoData.statistics?.viewCount ? parseInt(videoData.statistics.viewCount, 10) : null,
+      likeCount: videoData.statistics?.likeCount ? parseInt(videoData.statistics.likeCount, 10) : null,
+      commentCount: videoData.statistics?.commentCount ? parseInt(videoData.statistics.commentCount, 10) : null,
+      youtubeTags: Array.isArray(tags) && tags.length > 0 ? JSON.stringify(tags) : null,
       publishedAt: new Date(snippet.publishedAt),
       channelId,
       category,

@@ -66,6 +66,9 @@ export async function syncChannelVideos(channelId: string) {
     thumbnail?: string;
     durationSec: number | null;
     viewCount: number | null;
+    likeCount: number | null;
+    commentCount: number | null;
+    youtubeTags: string | null;
     publishedAt: Date;
     category?: string;
   }> = [];
@@ -93,6 +96,7 @@ export async function syncChannelVideos(channelId: string) {
     for (const v of apiDetails) {
       const durationSec = parseDuration(v.contentDetails?.duration || "");
       const catId = v.snippet?.categoryId ? parseInt(v.snippet.categoryId, 10) : undefined;
+      const tags = v.snippet?.tags;
       videoDetails.push({
         id: v.id,
         title: v.snippet.title,
@@ -100,6 +104,9 @@ export async function syncChannelVideos(channelId: string) {
         thumbnail: v.snippet.thumbnails?.medium?.url || v.snippet.thumbnails?.default?.url,
         durationSec,
         viewCount: v.statistics?.viewCount ? parseInt(v.statistics.viewCount, 10) : null,
+        likeCount: v.statistics?.likeCount ? parseInt(v.statistics.likeCount, 10) : null,
+        commentCount: v.statistics?.commentCount ? parseInt(v.statistics.commentCount, 10) : null,
+        youtubeTags: Array.isArray(tags) && tags.length > 0 ? JSON.stringify(tags) : null,
         publishedAt: new Date(v.snippet.publishedAt),
         category: catId ? YOUTUBE_CATEGORY_MAP[catId] : undefined,
       });
@@ -150,6 +157,9 @@ export async function syncChannelVideos(channelId: string) {
         thumbnail: v.thumbnail || `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,
         durationSec: null,
         viewCount: null,
+        likeCount: null,
+        commentCount: null,
+        youtubeTags: null,
         publishedAt: v.publishedAt ? new Date(v.publishedAt) : new Date(),
         category: undefined,
       });
@@ -185,6 +195,9 @@ export async function syncChannelVideos(channelId: string) {
       thumbnail: v.thumbnail,
       durationSec: v.durationSec,
       viewCount: v.viewCount,
+      likeCount: v.likeCount,
+      commentCount: v.commentCount,
+      youtubeTags: v.youtubeTags,
       publishedAt: v.publishedAt,
       channelId: channelId,
       category: v.category,
