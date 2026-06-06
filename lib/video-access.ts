@@ -18,28 +18,27 @@ export async function userVideosWhere(
   });
   const minDuration = user?.minVideoDurationSec ?? 0;
 
-  const base: Prisma.VideoWhereInput = {
-    OR: [
-      { channel: { users: { some: { id: userId } } } },
-      { userStates: { some: { userId, addedStandalone: true } } },
-    ],
-  };
-
   if (minDuration > 0) {
     return {
-      AND: [
-        base,
+      OR: [
         {
+          channel: { users: { some: { id: userId } } },
           OR: [
             { durationSec: null },
             { durationSec: { gt: minDuration } },
           ],
         },
+        { userStates: { some: { userId, addedStandalone: true } } },
       ],
     };
   }
 
-  return base;
+  return {
+    OR: [
+      { channel: { users: { some: { id: userId } } } },
+      { userStates: { some: { userId, addedStandalone: true } } },
+    ],
+  };
 }
 
 /**
@@ -56,26 +55,26 @@ export async function userVideosWhereWithCategory(
   const minDuration = user?.minVideoDurationSec ?? 0;
   const selectedCategory = user?.selectedCategory;
 
-  const conditions: Prisma.VideoWhereInput[] = [
-    {
-      OR: [
-        { channel: { users: { some: { id: userId } } } },
-        { userStates: { some: { userId, addedStandalone: true } } },
-      ],
-    },
+  const channelConditions: Prisma.VideoWhereInput[] = [
+    { channel: { users: { some: { id: userId } } } },
   ];
 
   if (minDuration > 0) {
-    conditions.push({
+    channelConditions.push({
       OR: [{ durationSec: null }, { durationSec: { gt: minDuration } }],
     });
   }
 
   if (selectedCategory) {
-    conditions.push({
+    channelConditions.push({
       channel: { categories: { some: { name: selectedCategory } } },
     });
   }
 
-  return { AND: conditions };
+  return {
+    OR: [
+      { AND: channelConditions },
+      { userStates: { some: { userId, addedStandalone: true } } },
+    ],
+  };
 }

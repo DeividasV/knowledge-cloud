@@ -1274,10 +1274,10 @@ export async function removeShortVideos() {
   const minDuration = user?.minVideoDurationSec ?? 300;
   const videoWhere = await userVideosWhereWithCategory(userId);
 
-  // Find short videos from user's visible channels
+  // Find short videos from user's visible channels (exclude standalone videos)
   const shortVideos = await prisma.video.findMany({
     where: {
-      ...videoWhere,
+      channel: { users: { some: { id: userId } } },
       durationSec: { not: null, lte: minDuration },
     },
     select: { id: true },
