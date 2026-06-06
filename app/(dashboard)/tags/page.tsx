@@ -1,11 +1,17 @@
 import { getTagGraph, getUserCategories } from "@/app/actions/tag-graph";
+import { getSelectedCategory } from "@/app/actions/videos";
 import { TagGraphClient } from "./tag-graph-client";
 
 export default async function TagsGraphPage() {
-  const [graph, categories] = await Promise.all([
+  const [graph, categories, selectedCategory] = await Promise.all([
     getTagGraph(150, 2),
     getUserCategories(),
+    getSelectedCategory(),
   ]);
+
+  const initialCategories = selectedCategory && categories.includes(selectedCategory)
+    ? [selectedCategory]
+    : [];
 
   return (
     <div className="space-y-4">
@@ -16,7 +22,11 @@ export default async function TagsGraphPage() {
         </p>
       </div>
 
-      <TagGraphClient initialGraph={graph} categories={categories} />
+      <TagGraphClient
+        initialGraph={graph}
+        categories={categories}
+        initialSelectedCategories={initialCategories}
+      />
     </div>
   );
 }

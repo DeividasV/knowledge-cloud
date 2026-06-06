@@ -38,9 +38,14 @@ export async function getTagGraph(
     channelWhere.categories = { some: { name: { in: categoryNames } } };
   }
 
-  // Get all video IDs from matching channels
+  // Get all video IDs from matching channels + standalone videos
   const videos = await prisma.video.findMany({
-    where: { channel: channelWhere },
+    where: {
+      OR: [
+        { channel: channelWhere },
+        { userStates: { some: { userId, addedStandalone: true } } },
+      ],
+    },
     select: { id: true },
   });
   const videoIdSet = new Set(videos.map((v) => v.id));
@@ -176,8 +181,18 @@ export async function getVideosForTag(
 
   return prisma.video.findMany({
     where: {
-      channel: channelWhere,
-      videoTags: { some: { tagId } },
+      OR: [
+        {
+          AND: [
+            { channel: channelWhere },
+            { videoTags: { some: { tagId } } },
+          ],
+        },
+        {
+          userStates: { some: { userId, addedStandalone: true } },
+          videoTags: { some: { tagId } },
+        },
+      ],
     },
     orderBy: { publishedAt: "desc" },
     take: limit,

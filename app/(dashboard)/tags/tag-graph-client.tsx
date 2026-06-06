@@ -13,17 +13,20 @@ const LS_KEY = "yt-tracker-tag-graph-categories";
 export function TagGraphClient({
   initialGraph,
   categories,
+  initialSelectedCategories = [],
 }: {
   initialGraph: TagGraphData;
   categories: string[];
+  initialSelectedCategories?: string[];
 }) {
   const router = useRouter();
   const [graph, setGraph] = useState<TagGraphData>(initialGraph);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(initialSelectedCategories);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load saved selection from localStorage
+  // Load saved selection from localStorage only if no initial selection provided
   useEffect(() => {
+    if (initialSelectedCategories.length > 0) return;
     try {
       const saved = localStorage.getItem(LS_KEY);
       if (saved) {
@@ -39,7 +42,7 @@ export function TagGraphClient({
     } catch {
       // ignore parse errors
     }
-  }, [categories]);
+  }, [categories, initialSelectedCategories]);
 
   // Save to localStorage when selection changes
   useEffect(() => {
