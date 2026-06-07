@@ -3,8 +3,16 @@ import { getTopTagsWithWatchStats, getTagScoreSummary } from "@/app/actions/vide
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Tag, Eye, EyeOff, Hash } from "lucide-react";
+import { Tag, Eye, EyeOff, Hash, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+function formatHours(hours: number): string {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
 
 export async function TagDashboardStats() {
   const { totalTags, topTags } = await getTopTagsWithWatchStats(12);
@@ -43,6 +51,20 @@ export async function TagDashboardStats() {
             <div className="text-right">
               <div className="font-semibold tabular-nums text-slate-500">
                 {tagSummary.remainingScore.toFixed(1)}
+              </div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Remaining</div>
+            </div>
+          </div>
+          <div className="hidden sm:flex items-center gap-3">
+            <div className="text-right">
+              <div className="font-semibold tabular-nums text-emerald-600">
+                {formatHours(tagSummary.watchedHours)}
+              </div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Watched</div>
+            </div>
+            <div className="text-right">
+              <div className="font-semibold tabular-nums text-slate-500">
+                {formatHours(tagSummary.remainingHours)}
               </div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Remaining</div>
             </div>
@@ -143,15 +165,23 @@ export async function TagDashboardStats() {
                       />
                     </div>
 
-                    {/* Scores */}
+                    {/* Scores + hours */}
                     <div className="flex items-center justify-between text-[10px]">
                       <span className="flex items-center gap-1 text-emerald-600/80">
                         <Eye className="h-3 w-3" />
                         {tag.watchedScore.toFixed(2)}
+                        <span className="text-emerald-600/60 ml-0.5">
+                          <Clock className="h-3 w-3 inline -mt-px" />
+                          {formatHours(tag.watchedHours)}
+                        </span>
                       </span>
                       <span className="flex items-center gap-1 text-slate-400">
                         <EyeOff className="h-3 w-3" />
                         {tag.remainingScore.toFixed(2)}
+                        <span className="text-slate-400/60 ml-0.5">
+                          <Clock className="h-3 w-3 inline -mt-px" />
+                          {formatHours(tag.remainingHours)}
+                        </span>
                       </span>
                     </div>
                   </div>

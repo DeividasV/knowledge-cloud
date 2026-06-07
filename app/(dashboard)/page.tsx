@@ -4,7 +4,15 @@ import { getDashboardStats } from "@/app/actions/videos";
 import { TagDashboardStats } from "@/components/tag-dashboard-stats";
 import { CategoryDashboard } from "@/components/category-dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tv, PlaySquare, Eye, EyeOff, XCircle } from "lucide-react";
+import { Tv, PlaySquare, Eye, EyeOff, XCircle, Clock } from "lucide-react";
+
+function formatHours(hours: number): string {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -61,6 +69,10 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.unwatched}</div>
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatHours(stats.unwatchedHours)}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -70,6 +82,10 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.watched}</div>
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatHours(stats.watchedHours)}
+            </p>
           </CardContent>
         </Card>
         <Card>

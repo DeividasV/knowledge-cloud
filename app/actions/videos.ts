@@ -190,25 +190,61 @@ export async function getDashboardStats() {
   const userId = await getUserId();
   const videoWhere = await userVideosWhereWithCategory(userId);
 
-  const [totalChannels, totalVideos, stats, transcriptCount] = await Promise.all([
-    prisma.channel.count({
-      where: { users: { some: { id: userId } } },
-    }),
-    prisma.video.count({
-      where: videoWhere,
-    }),
-    prisma.userVideo.groupBy({
-      by: ["status"],
-      where: { userId },
-      _count: { status: true },
-    }),
-    prisma.video.count({
-      where: {
-        ...videoWhere,
-        transcript: { not: null },
-      },
-    }),
-  ]);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { selectedCategory: true },
+  });
+
+  const channelWhere: { users: { some: { id: string } }; categories?: { some: { name: string } } } = {
+    users: { some: { id: userId } },
+  };
+  if (user?.selectedCategory) {
+    channelWhere.categories = { some: { name: user.selectedCategory } };
+  }
+
+  const [totalChannels, totalVideos, stats, transcriptCount, watchedAgg, unwatchedAgg] =
+    await Promise.all([
+      prisma.channel.count({
+        where: channelWhere,
+      }),
+      prisma.video.count({
+        where: videoWhere,
+      }),
+      prisma.userVideo.groupBy({
+        by: ["status"],
+        where: {
+          userId,
+          video: videoWhere,
+        },
+        _count: { status: true },
+      }),
+      prisma.video.count({
+        where: {
+          ...videoWhere,
+          transcript: { not: null },
+        },
+      }),
+      prisma.video.aggregate({
+        where: {
+          AND: [videoWhere, { userStates: { some: { userId, status: "WATCHED" } } }],
+        },
+        _sum: { durationSec: true },
+      }),
+      prisma.video.aggregate({
+        where: {
+          AND: [
+            videoWhere,
+            {
+              OR: [
+                { userStates: { none: { userId } } },
+                { userStates: { some: { userId, status: { in: ["UNWATCHED", "WATCHING"] } } } },
+              ],
+            },
+          ],
+        },
+        _sum: { durationSec: true },
+      }),
+    ]);
 
   const statusCounts = {
     UNWATCHED: 0,
@@ -222,14 +258,23 @@ export async function getDashboardStats() {
     statusCounts[key] = s._count.status;
   }
 
+  // Videos without a userVideo row are implicitly UNWATCHED
+  const videosWithExplicitStatus = stats.reduce((sum, s) => sum + s._count.status, 0);
+  const implicitUnwatched = totalVideos - videosWithExplicitStatus;
+
+  const watchedHours = Math.round((watchedAgg._sum.durationSec ?? 0) / 36) / 100; // 2 decimal places
+  const unwatchedHours = Math.round((unwatchedAgg._sum.durationSec ?? 0) / 36) / 100;
+
   return {
     totalChannels,
     totalVideos,
     transcriptCount,
-    unwatched: statusCounts.UNWATCHED,
+    unwatched: statusCounts.UNWATCHED + implicitUnwatched,
     watching: statusCounts.WATCHING,
     watched: statusCounts.WATCHED,
     notInterested: statusCounts.NOT_INTERESTED,
+    watchedHours,
+    unwatchedHours,
   };
 }
 
@@ -749,12 +794,16 @@ export interface TagWatchStats {
   remainingScore: number;
   watchedCount: number;
   totalCount: number;
+  watchedHours: number;
+  remainingHours: number;
 }
 
 export async function getTagScoreSummary(): Promise<{
   totalScore: number;
   watchedScore: number;
   remainingScore: number;
+  watchedHours: number;
+  remainingHours: number;
 }> {
   const userId = await getUserId();
 
@@ -766,6 +815,7 @@ export async function getTagScoreSummary(): Promise<{
       score: true,
       video: {
         select: {
+          durationSec: true,
           userStates: {
             where: { userId },
             select: { status: true },
@@ -778,18 +828,23 @@ export async function getTagScoreSummary(): Promise<{
   let totalScore = 0;
   let watchedScore = 0;
   let remainingScore = 0;
+  let watchedHours = 0;
+  let remainingHours = 0;
 
   for (const vt of videoTags) {
     const status = vt.video.userStates[0]?.status ?? "UNWATCHED";
+    const duration = (vt.video.durationSec ?? 0) / 3600;
     totalScore += vt.score;
     if (status === "WATCHED") {
       watchedScore += vt.score;
+      watchedHours += duration;
     } else {
       remainingScore += vt.score;
+      remainingHours += duration;
     }
   }
 
-  return { totalScore, watchedScore, remainingScore };
+  return { totalScore, watchedScore, remainingScore, watchedHours, remainingHours };
 }
 
 export async function getTopTagsWithWatchStats(limit = 10): Promise<{
@@ -809,6 +864,7 @@ export async function getTopTagsWithWatchStats(limit = 10): Promise<{
       tag: { select: { id: true, name: true } },
       video: {
         select: {
+          durationSec: true,
           userStates: {
             where: { userId },
             select: { status: true },
@@ -827,12 +883,15 @@ export async function getTopTagsWithWatchStats(limit = 10): Promise<{
       remainingScore: number;
       watchedCount: number;
       totalCount: number;
+      watchedHours: number;
+      remainingHours: number;
     }
   >();
 
   for (const vt of videoTags) {
     const status = vt.video.userStates[0]?.status ?? "UNWATCHED";
     const isWatched = status === "WATCHED";
+    const duration = (vt.video.durationSec ?? 0) / 3600;
 
     const existing = map.get(vt.tag.id);
     if (existing) {
@@ -841,8 +900,10 @@ export async function getTopTagsWithWatchStats(limit = 10): Promise<{
       if (isWatched) {
         existing.watchedScore += vt.score;
         existing.watchedCount++;
+        existing.watchedHours += duration;
       } else {
         existing.remainingScore += vt.score;
+        existing.remainingHours += duration;
       }
     } else {
       map.set(vt.tag.id, {
@@ -852,6 +913,8 @@ export async function getTopTagsWithWatchStats(limit = 10): Promise<{
         remainingScore: isWatched ? 0 : vt.score,
         watchedCount: isWatched ? 1 : 0,
         totalCount: 1,
+        watchedHours: isWatched ? duration : 0,
+        remainingHours: isWatched ? 0 : duration,
       });
     }
   }
