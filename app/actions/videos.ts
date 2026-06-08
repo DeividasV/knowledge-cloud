@@ -432,7 +432,10 @@ async function getUserTagExtractionConfig(): Promise<{
   };
 }
 
-export async function generateVideoTags(videoId: string) {
+export async function generateVideoTags(videoId: string): Promise<
+  | { success: true; tags: { name: string; score: number }[] }
+  | { success: false; error: string }
+> {
   await getUserId();
 
   const video = await prisma.video.findUnique({
@@ -472,19 +475,22 @@ export async function generateVideoTags(videoId: string) {
       throw err;
     }
     const backend = method === "gemini" ? "Gemini" : "Ollama";
-    throw new Error(
-      `Tag extraction failed via ${backend}: ${err?.message || "Unknown error"}`
-    );
+    return {
+      success: false,
+      error: `Tag extraction failed via ${backend}: ${err?.message || "Unknown error"}`,
+    };
   }
 
   if (!extracted || extracted.length === 0) {
     const backend = method === "gemini" ? "Gemini" : "Ollama";
-    throw new Error(
-      `Tag extraction via ${backend} returned no tags. ` +
+    return {
+      success: false,
+      error:
+        `Tag extraction via ${backend} returned no tags. ` +
         (method === "gemini"
           ? "The model may have refused to process this content, or the transcript was too short."
-          : "Make sure Ollama is running and the model is loaded. The video transcript may be too long for the 180s timeout.")
-    );
+          : "Make sure Ollama is running and the model is loaded. The video transcript may be too long for the 180s timeout."),
+    };
   }
 
   const tagNames = extracted;
@@ -1102,7 +1108,11 @@ export async function generateTagsBatch(videoIds: string[]) {
   for (const videoId of videoIds) {
     try {
       const result = await generateVideoTags(videoId);
-      results.push({ videoId, status: "success", tags: result.tags });
+      if (result.success) {
+        results.push({ videoId, status: "success", tags: result.tags });
+      } else {
+        results.push({ videoId, status: "error", error: result.error });
+      }
     } catch (e: any) {
       results.push({ videoId, status: "error", error: e.message });
     }

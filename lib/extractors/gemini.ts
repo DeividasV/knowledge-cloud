@@ -79,7 +79,10 @@ ${context}`;
 
 function buildPromptContext(title: string, transcript: string | null): string {
   const parts: string[] = [];
-  parts.push(`Title: ${title}`);
+
+  if (title && title.trim().length > 0) {
+    parts.push(`Title: ${title}`);
+  }
 
   if (transcript && transcript.length > 0) {
     parts.push(`Transcript: ${transcript}`);
@@ -106,26 +109,10 @@ interface GeminiResponse {
   };
 }
 
-/**
- * Extract tags using Google's Gemini API with structured JSON output.
- * Returns scored tags or null on any failure.
- */
-export async function extractTagsWithGemini(
-  title: string,
-  transcript: string | null,
-  extractLimit = 15,
-  model?: string,
-  language = "en"
+async function doGeminiRequest(
+  url: string,
+  prompt: string
 ): Promise<TagResult[] | null> {
-  if (!GEMINI_API_KEY) {
-    console.error("[Gemini] No API key configured");
-    return null;
-  }
-
-  const resolvedModel = model || DEFAULT_GEMINI_MODEL;
-  const url = `${GEMINI_API_URL}/models/${resolvedModel}:generateContent?key=${GEMINI_API_KEY}`;
-  const prompt = buildPrompt(title, transcript, extractLimit, language);
-
   const body = {
     contents: [
       {
@@ -207,25 +194,10 @@ export async function extractTagsWithGemini(
         throw new Error(`Gemini returned unexpected structure: ${JSON.stringify(parsed).slice(0, 400)}`);
       }
 
-      const beforeFilter = parsed.tags.length;
-      let tags = parsed.tags
-        .map((t) => ({
-          name: cleanTag(t.tag),
-          score: Math.max(0, Math.min(1, Number(t.relevance ?? 0.5))),
-        }))
-        .filter((t) => t.name.length >= 2 && t.name.length <= 40)
-        .filter((t) => !isGenericFiller(t.name));
-
-      const beforeScript = tags.length;
-      tags = tags.filter((t) => filterByScript(t.name, language));
-      const scriptDropped = beforeScript - tags.length;
-
-      const deduped = deduplicateTags(tags);
-      const result = selectTagsByScore(deduped);
-      console.log(
-        `[Gemini] Tags: raw=${beforeFilter} → afterFilter=${tags.length}${scriptDropped > 0 ? ` (dropped ${scriptDropped} wrong-script)` : ""} → deduped=${deduped.length} → final=${result.length}`
-      );
-      return result;
+      return parsed.tags.map((t) => ({
+        name: cleanTag(t.tag),
+        score: Math.max(0, Math.min(1, Number(t.relevance ?? 0.5))),
+      }));
     } catch (err) {
       console.error(`[Gemini] Attempt ${attempt + 1} failed:`, err);
       if (attempt < maxRetries - 1) {
@@ -237,6 +209,75 @@ export async function extractTagsWithGemini(
   }
 
   return null;
+}
+
+/**
+ * Extract tags using Google's Gemini API with structured JSON output.
+ * Returns scored tags or null on any failure.
+ *
+ * Strategy:
+ * 1. Try with title + transcript first (more context = better tags).
+ * 2. If that fails and a transcript exists, retry with transcript only.
+ *    The title can sometimes trigger safety refusals on sensitive topics
+ *    even when the transcript itself is perfectly fine.
+ */
+export async function extractTagsWithGemini(
+  title: string,
+  transcript: string | null,
+  extractLimit = 15,
+  model?: string,
+  language = "en"
+): Promise<TagResult[] | null> {
+  if (!GEMINI_API_KEY) {
+    console.error("[Gemini] No API key configured");
+    return null;
+  }
+
+  const resolvedModel = model || DEFAULT_GEMINI_MODEL;
+  const url = `${GEMINI_API_URL}/models/${resolvedModel}:generateContent?key=${GEMINI_API_KEY}`;
+
+  // Attempt 1: title + transcript
+  const promptFull = buildPrompt(title, transcript, extractLimit, language);
+  const rawTagsFull = await doGeminiRequest(url, promptFull);
+
+  if (rawTagsFull && rawTagsFull.length > 0) {
+    return finalizeTags(rawTagsFull, language, extractLimit);
+  }
+
+  // Attempt 2: transcript only (title can trigger safety filters)
+  if (transcript && transcript.length > 0) {
+    console.log("[Gemini] Full prompt returned empty; retrying with transcript only");
+    const promptTranscriptOnly = buildPrompt("", transcript, extractLimit, language);
+    const rawTagsTranscript = await doGeminiRequest(url, promptTranscriptOnly);
+
+    if (rawTagsTranscript && rawTagsTranscript.length > 0) {
+      return finalizeTags(rawTagsTranscript, language, extractLimit);
+    }
+  }
+
+  return null;
+}
+
+function finalizeTags(
+  rawTags: TagResult[],
+  language: string,
+  extractLimit: number
+): TagResult[] {
+  const beforeFilter = rawTags.length;
+  let tags = rawTags
+    .filter((t) => t.name.length >= 2 && t.name.length <= 40)
+    .filter((t) => !isGenericFiller(t.name));
+
+  const beforeScript = tags.length;
+  tags = tags.filter((t) => filterByScript(t.name, language));
+  const scriptDropped = beforeScript - tags.length;
+
+  const deduped = deduplicateTags(tags);
+  const result = selectTagsByScore(deduped, extractLimit);
+  console.log(
+    `[Gemini] Tags: raw=${beforeFilter} → afterFilter=${tags.length}${scriptDropped > 0 ? ` (dropped ${scriptDropped} wrong-script)` : ""} → deduped=${deduped.length} → final=${result.length}`
+  );
+  return result;
 }
 
 export function isGeminiConfigured(): boolean {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { generateVideoTags } from "@/app/actions/videos";
@@ -82,32 +82,45 @@ export function VideoTagAction({
   hasTags: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleGenerate = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setError(null);
     startTransition(async () => {
-      await generateVideoTags(videoId);
+      const result = await generateVideoTags(videoId);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
       router.refresh();
     });
   };
 
   if (!hasTags) {
     return (
-      <Button
-        onClick={handleGenerate}
-        disabled={isPending}
-        variant="ghost"
-        size="sm"
-        className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
-      >
-        {isPending ? (
-          <Loader2 className="h-3 w-3 animate-spin mr-1" />
-        ) : (
-          <Sparkles className="h-3 w-3 mr-1" />
+      <span className="inline-flex items-center gap-1">
+        <Button
+          onClick={handleGenerate}
+          disabled={isPending}
+          variant="ghost"
+          size="sm"
+          className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+        >
+          {isPending ? (
+            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+          ) : (
+            <Sparkles className="h-3 w-3 mr-1" />
+          )}
+          Generate tags
+        </Button>
+        {error && (
+          <span className="text-[10px] text-destructive" title={error}>
+            Error
+          </span>
         )}
-        Generate tags
-      </Button>
+      </span>
     );
   }
 
@@ -117,7 +130,7 @@ export function VideoTagAction({
       disabled={isPending}
       variant="ghost"
       size="sm"
-      title="Regenerate tags"
+      title={error ?? "Regenerate tags"}
       className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
     >
       {isPending ? (

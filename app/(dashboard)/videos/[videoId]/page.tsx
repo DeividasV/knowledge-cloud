@@ -14,7 +14,6 @@ import {
   User,
   Tag,
   FileText,
-  Sparkles,
   Trash2,
   Eye,
   ThumbsUp,
@@ -22,7 +21,8 @@ import {
 } from "lucide-react";
 import { VideoStatusToggle } from "@/components/video-status-toggle";
 import { VideoStatus } from "@/lib/types";
-import { generateVideoTags, removeVideo } from "@/app/actions/videos";
+import { removeVideo } from "@/app/actions/videos";
+import { VideoTagGenerate } from "@/components/video-tag-generate";
 import { TagReportClient } from "@/components/tag-report-client";
 import { VideoTranscriptStatic } from "@/components/video-transcript-static";
 import { userVideosWhere, userVideosWhereWithCategory } from "@/lib/video-access";
@@ -230,19 +230,7 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
               <ExternalLink className="h-4 w-4 mr-1" />
               YouTube
             </a>
-            {tags.length === 0 && (
-              <form
-                action={async () => {
-                  "use server";
-                  await generateVideoTags(videoId);
-                }}
-              >
-                <Button size="sm" variant="outline" type="submit">
-                  <Sparkles className="h-4 w-4 mr-1.5" />
-                  Generate tags
-                </Button>
-              </form>
-            )}
+            {tags.length === 0 && <VideoTagGenerate videoId={videoId} />}
             <form
               action={async () => {
                 "use server";

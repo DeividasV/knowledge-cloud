@@ -41,13 +41,19 @@ export function TagReportClient({
   tagCounts?: Record<string, number>;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const maxScore = tags[0]?.score ?? 0;
 
   const handleRegenerate = () => {
+    setError(null);
     startTransition(async () => {
-      await generateVideoTags(videoId);
+      const result = await generateVideoTags(videoId);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
       router.refresh();
     });
   };
@@ -135,7 +141,10 @@ export function TagReportClient({
       </div>
 
       {/* Regenerate */}
-      <div className="flex justify-end pt-2">
+      <div className="flex flex-col items-end gap-2 pt-2">
+        {error && (
+          <p className="text-sm text-destructive text-right max-w-md">{error}</p>
+        )}
         <Button
           onClick={handleRegenerate}
           disabled={isPending}
