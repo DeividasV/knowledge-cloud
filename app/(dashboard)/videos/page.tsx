@@ -7,6 +7,7 @@ import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
 import { AddVideoForm } from "@/components/add-video-form";
 import { userVideosWhereWithCategory } from "@/lib/video-access";
+import { searchVideos } from "@/lib/video-search";
 
 const PAGE_SIZE = 50;
 
@@ -38,78 +39,24 @@ export default async function VideosPage({
       : "all");
 
   const page = Math.max(1, parseInt(pageStr || "1", 10));
-  const skip = (page - 1) * PAGE_SIZE;
-
-  const searchWhere = query
-    ? {
-        title: { contains: query },
-      }
-    : {};
 
   const isStandaloneTab = tab === "standalone";
   const baseWhereClause = await userVideosWhereWithCategory(userId);
 
-  const baseWhere = isStandaloneTab
-    ? {
-        ...baseWhereClause,
-        ...searchWhere,
-        channelId: null as string | null,
-      }
-    : {
-        ...baseWhereClause,
-        ...searchWhere,
-        ...(tab === "unwatched"
-          ? {
-              NOT: {
-                userStates: {
-                  some: { userId, status: { in: ["WATCHING", "WATCHED", "NOT_INTERESTED"] } },
-                },
-              },
-            }
-          : tab === "watched"
-          ? {
-              userStates: { some: { userId, status: "WATCHED" } },
-            }
-          : tab === "not-interested"
-          ? {
-              userStates: { some: { userId, status: "NOT_INTERESTED" } },
-            }
-          : {}),
-      };
-
-  const [totalVideos, videos, standaloneCount] = await Promise.all([
-    prisma.video.count({ where: baseWhere }),
-    prisma.video.findMany({
-      where: baseWhere,
-      orderBy: { publishedAt: "desc" },
-      skip,
-      take: PAGE_SIZE,
-      include: {
-        channel: true,
-        videoTags: {
-          include: { tag: true },
-          orderBy: { score: "desc" },
-        },
-        userStates: {
-          where: { userId },
-        },
-      },
-    }),
+  // Tab counts (without search filter)
+  const [standaloneCount, statusCounts] = await Promise.all([
     prisma.video.count({
       where: {
         ...baseWhereClause,
         channelId: null,
       },
     }),
+    prisma.userVideo.groupBy({
+      by: ["status"],
+      where: { userId },
+      _count: { status: true },
+    }),
   ]);
-
-  const totalPages = Math.ceil(totalVideos / PAGE_SIZE);
-
-  const statusCounts = await prisma.userVideo.groupBy({
-    by: ["status"],
-    where: { userId },
-    _count: { status: true },
-  });
 
   const counts = {
     UNWATCHED: 0,
@@ -122,6 +69,16 @@ export default async function VideosPage({
       counts[key] = s._count.status;
     }
   }
+
+  // Fetch videos for the current tab with search + ranking
+  const { videos, total: totalVideos } = await searchVideos({
+    userId,
+    query,
+    tab,
+    page,
+  });
+
+  const totalPages = Math.ceil(totalVideos / PAGE_SIZE);
 
   // Build return URL for video detail back-navigation
   const returnSearch = new URLSearchParams();
@@ -195,7 +152,7 @@ export default async function VideosPage({
       </div>
 
       <AddVideoForm />
-      <SearchInput placeholder="Search videos by title..." />
+      <SearchInput placeholder="Search videos by title, description, transcript or tags..." />
 
       <Tabs defaultValue={tab}>
         <TabsList>
@@ -210,15 +167,15 @@ export default async function VideosPage({
         </TabsContent>
         <TabsContent value="unwatched" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
-          <FilteredVideos userId={userId} status="UNWATCHED" page={page} query={query} from={returnUrl} />
+          <FilteredVideos userId={userId} tab="unwatched" page={page} query={query} from={returnUrl} />
         </TabsContent>
         <TabsContent value="watched" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
-          <FilteredVideos userId={userId} status="WATCHED" page={page} query={query} from={returnUrl} />
+          <FilteredVideos userId={userId} tab="watched" page={page} query={query} from={returnUrl} />
         </TabsContent>
         <TabsContent value="not-interested" className="mt-4">
           {/* @ts-ignore Next.js 16 async component JSX type bug */}
-          <FilteredVideos userId={userId} status="NOT_INTERESTED" page={page} query={query} from={returnUrl} />
+          <FilteredVideos userId={userId} tab="not-interested" page={page} query={query} from={returnUrl} />
         </TabsContent>
         <TabsContent value="standalone" className="mt-4">
           <VideoList items={videos} from={returnUrl} />
@@ -230,59 +187,23 @@ export default async function VideosPage({
 
 async function FilteredVideos({
   userId,
-  status,
+  tab,
   page,
   query,
   from,
 }: {
   userId: string;
-  status: VideoStatus;
+  tab: string;
   page: number;
   query?: string;
   from: string;
 }) {
-  const skip = (page - 1) * PAGE_SIZE;
-
-  const searchWhere = query
-    ? { title: { contains: query } }
-    : {};
-
-  const baseWhereClause = await userVideosWhereWithCategory(userId);
-
-  const statusFilter =
-    status === "UNWATCHED"
-      ? {
-          ...baseWhereClause,
-          ...searchWhere,
-          NOT: {
-            userStates: {
-              some: { userId, status: { in: ["WATCHING", "WATCHED", "NOT_INTERESTED"] } },
-            },
-          },
-        }
-      : {
-          ...baseWhereClause,
-          ...searchWhere,
-          userStates: { some: { userId, status } },
-        };
-
-  const [total, videos] = await Promise.all([
-    prisma.video.count({ where: statusFilter }),
-    prisma.video.findMany({
-      where: statusFilter,
-      orderBy: { publishedAt: "desc" },
-      skip,
-      take: PAGE_SIZE,
-      include: {
-        channel: true,
-        videoTags: {
-          include: { tag: true },
-          orderBy: { score: "desc" },
-        },
-        userStates: { where: { userId } },
-      },
-    }),
-  ]);
+  const { videos, total } = await searchVideos({
+    userId,
+    query,
+    tab,
+    page,
+  });
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
