@@ -38,6 +38,20 @@ async function setChannelCategories(channelId: string, categoryNames: string[]) 
   });
 }
 
+async function propagateChannelCategoryToVideos(channelId: string) {
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    include: { categories: { orderBy: { name: "asc" } } },
+  });
+  if (!channel || channel.categories.length === 0) return;
+
+  const primaryCategory = channel.categories[0].name;
+  await prisma.video.updateMany({
+    where: { channelId },
+    data: { category: primaryCategory },
+  });
+}
+
 export async function syncChannelVideos(channelId: string) {
   const session = await auth();
   const userId = session?.user?.id;
@@ -233,6 +247,9 @@ export async function syncChannelVideos(channelId: string) {
   if (mostCommonCategory && channel.categories.length === 0) {
     await setChannelCategories(channelId, [mostCommonCategory]);
   }
+
+  // Propagate channel categories to all its videos so standalone-like filtering works
+  await propagateChannelCategoryToVideos(channelId);
 
   revalidatePath("/");
   revalidatePath("/channels/[channelId]");

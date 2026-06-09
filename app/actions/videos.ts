@@ -298,8 +298,15 @@ export async function addChannelCategory(channelId: string, categoryName: string
     },
   });
 
+  // Propagate the primary channel category to all its videos
+  await prisma.video.updateMany({
+    where: { channelId },
+    data: { category: name },
+  });
+
   revalidatePath("/channels");
   revalidatePath("/channels/[channelId]");
+  revalidatePath("/videos");
 }
 
 export async function removeChannelCategory(channelId: string, categoryName: string) {
@@ -317,8 +324,20 @@ export async function removeChannelCategory(channelId: string, categoryName: str
     },
   });
 
+  // If the removed category was the one on videos, update to the new primary
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    include: { categories: { orderBy: { name: "asc" } } },
+  });
+  const newPrimary = channel?.categories[0]?.name ?? null;
+  await prisma.video.updateMany({
+    where: { channelId },
+    data: { category: newPrimary },
+  });
+
   revalidatePath("/channels");
   revalidatePath("/channels/[channelId]");
+  revalidatePath("/videos");
 }
 
 // ── Transcript actions ──────────────────────────────────────────────
@@ -1340,6 +1359,17 @@ export async function setSelectedCategory(category: string | null) {
   revalidatePath("/recommendations");
   revalidatePath("/tags");
   revalidatePath("/tags/list");
+}
+
+export async function setVideoCategory(videoId: string, category: string | null) {
+  await getUserId();
+  await prisma.video.update({
+    where: { id: videoId },
+    data: { category: category || null },
+  });
+  revalidatePath("/videos");
+  revalidatePath("/videos/[videoId]");
+  revalidatePath("/channels/[channelId]");
 }
 
 export async function removeShortVideos() {

@@ -40,6 +40,20 @@ async function setChannelCategories(channelId: string, categoryNames: string[]) 
   });
 }
 
+async function propagateChannelCategoryToVideos(channelId: string) {
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    include: { categories: { orderBy: { name: "asc" } } },
+  });
+  if (!channel || channel.categories.length === 0) return;
+
+  const primaryCategory = channel.categories[0].name;
+  await prisma.video.updateMany({
+    where: { channelId },
+    data: { category: primaryCategory },
+  });
+}
+
 async function upsertChannelFromApiItem(ch: any) {
   const uploadsPlaylistId = ch.contentDetails?.relatedPlaylists?.uploads;
   const topicIds = ch.topicDetails?.topicIds as string[] | undefined;

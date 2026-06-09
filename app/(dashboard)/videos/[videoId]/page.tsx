@@ -23,6 +23,7 @@ import { VideoStatusToggle } from "@/components/video-status-toggle";
 import { VideoStatus } from "@/lib/types";
 import { removeVideo } from "@/app/actions/videos";
 import { VideoTagGenerate } from "@/components/video-tag-generate";
+import { VideoCategoryEditor } from "@/components/video-category-editor";
 import { TagReportClient } from "@/components/tag-report-client";
 import { VideoTranscriptStatic } from "@/components/video-transcript-static";
 import { userVideosWhere, userVideosWhereWithCategory } from "@/lib/video-access";
@@ -207,11 +208,7 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
                   {formatNumber(video.commentCount)}
                 </span>
               )}
-              {video.category && (
-                <Badge variant="secondary" className="text-xs">
-                  {video.category}
-                </Badge>
-              )}
+              <VideoCategoryEditor videoId={videoId} category={video.category} />
             </div>
           </div>
 

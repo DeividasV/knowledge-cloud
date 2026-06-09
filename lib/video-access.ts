@@ -44,6 +44,10 @@ export async function userVideosWhere(
 /**
  * Same as userVideosWhere but also applies the user's selected category filter.
  * Use this on list/overview pages where category filtering makes sense.
+ *
+ * Category is checked on BOTH the video itself (Video.category) and the
+ * channel's categories (Channel.categories). This ensures standalone videos
+ * and videos with a direct category assignment are included.
  */
 export async function userVideosWhereWithCategory(
   userId: string
@@ -55,26 +59,38 @@ export async function userVideosWhereWithCategory(
   const minDuration = user?.minVideoDurationSec ?? 0;
   const selectedCategory = user?.selectedCategory;
 
-  const channelConditions: Prisma.VideoWhereInput[] = [
-    { channel: { users: { some: { id: userId } } } },
-  ];
+  // Visibility: which videos can this user see?
+  const visibilityWhere: Prisma.VideoWhereInput =
+    minDuration > 0
+      ? {
+          OR: [
+            {
+              channel: { users: { some: { id: userId } } },
+              OR: [{ durationSec: null }, { durationSec: { gt: minDuration } }],
+            },
+            { userStates: { some: { userId, addedStandalone: true } } },
+          ],
+        }
+      : {
+          OR: [
+            { channel: { users: { some: { id: userId } } } },
+            { userStates: { some: { userId, addedStandalone: true } } },
+          ],
+        };
 
-  if (minDuration > 0) {
-    channelConditions.push({
-      OR: [{ durationSec: null }, { durationSec: { gt: minDuration } }],
-    });
-  }
+  // Category filter: applies to ALL visible videos
+  const categoryWhere: Prisma.VideoWhereInput | null = selectedCategory
+    ? {
+        OR: [
+          { category: selectedCategory },
+          { channel: { categories: { some: { name: selectedCategory } } } },
+        ],
+      }
+    : null;
 
-  if (selectedCategory) {
-    channelConditions.push({
-      channel: { categories: { some: { name: selectedCategory } } },
-    });
-  }
+  const conditions = [visibilityWhere, categoryWhere].filter(
+    (c): c is Prisma.VideoWhereInput => c !== null && Object.keys(c).length > 0
+  );
 
-  return {
-    OR: [
-      { AND: channelConditions },
-      { userStates: { some: { userId, addedStandalone: true } } },
-    ],
-  };
+  return conditions.length === 1 ? conditions[0] : { AND: conditions };
 }
