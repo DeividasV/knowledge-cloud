@@ -1,8 +1,5 @@
-FROM node:22-alpine AS base
+FROM node:22-slim AS base
 WORKDIR /app
-
-# Install OpenSSL 1.1 compatibility required by Prisma 5 on Alpine/musl
-RUN apk add --no-cache openssl1.1-compat
 
 # Install dependencies
 COPY package.json package-lock.json ./
