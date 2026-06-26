@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { assertUserOwnsChannel } from "@/lib/video-access";
 import {
   resolveChannel,
   resolveChannelFallback,

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { assertUserOwnsChannel } from "@/lib/video-access";
 import {
   fetchPlaylistItems,
   fetchVideoDetails,
@@ -56,6 +57,8 @@ export async function syncChannelVideos(channelId: string) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) throw new Error("Not authenticated");
+
+  await assertUserOwnsChannel(userId, channelId);
 
   const user = await prisma.user.findUnique({
     where: { id: userId },

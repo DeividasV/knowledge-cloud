@@ -1,6 +1,7 @@
 import { signIn } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmailLoginForm } from "@/components/email-login-form";
 
 export default function LoginPage({
   searchParams,
@@ -8,22 +9,6 @@ export default function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const error = searchParams.then((p) => p.error);
-
-  const errorMessages: Record<string, string> = {
-    Configuration: "Auth configuration error. Check server logs.",
-    AccessDenied: "Access denied. Try again.",
-    Verification: "The verification token expired. Please try again.",
-    OAuthSignin: "Error starting OAuth sign-in. Try again.",
-    OAuthCallback: "Error during OAuth callback. Try again.",
-    OAuthCreateAccount: "Error creating account. Try again.",
-    EmailCreateAccount: "Error creating email account. Try again.",
-    Callback: "Callback error. Try again.",
-    OAuthAccountNotLinked: "This email is already linked to another account.",
-    EmailSignin: "Error sending sign-in email. Try again.",
-    CredentialsSignin: "Invalid credentials.",
-    SessionRequired: "Please sign in to access this page.",
-    Default: "An unknown error occurred. Please try again.",
-  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
@@ -69,6 +54,19 @@ export default function LoginPage({
               Sign in with Google
             </Button>
           </form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">
+                Or continue with email
+              </span>
+            </div>
+          </div>
+
+          <EmailLoginForm />
         </CardContent>
       </Card>
     </div>

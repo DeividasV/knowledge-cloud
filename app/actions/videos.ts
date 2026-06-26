@@ -18,7 +18,12 @@ import {
   getCategoryFromTopics,
   YOUTUBE_CATEGORY_MAP,
 } from "@/lib/youtube";
-import { userVideosWhere, userVideosWhereWithCategory } from "@/lib/video-access";
+import {
+  assertUserCanAccessVideo,
+  assertUserOwnsChannel,
+  userVideosWhere,
+  userVideosWhereWithCategory,
+} from "@/lib/video-access";
 
 async function getUserId(): Promise<string> {
   const session = await auth();
@@ -32,6 +37,7 @@ export async function updateVideoStatus(
   progressSec?: number
 ) {
   const userId = await getUserId();
+  await assertUserCanAccessVideo(userId, videoId);
 
   const existing = await prisma.userVideo.findUnique({
     where: { userId_videoId: { userId, videoId } },
@@ -65,8 +71,12 @@ export async function updateVideoStatus(
 }
 
 export async function deleteVideoTags(videoIds: string[]) {
-  await getUserId();
+  const userId = await getUserId();
   if (videoIds.length === 0) return { deleted: 0 };
+
+  for (const videoId of videoIds) {
+    await assertUserCanAccessVideo(userId, videoId);
+  }
 
   const result = await prisma.videoTag.deleteMany({
     where: { videoId: { in: videoIds } },
@@ -115,6 +125,7 @@ export async function deleteTagsForVideosWithRussianTags() {
 
 export async function markAllChannelVideosAsWatched(channelId: string) {
   const userId = await getUserId();
+  await assertUserOwnsChannel(userId, channelId);
 
   const videos = await prisma.video.findMany({
     where: { channelId },
@@ -281,7 +292,8 @@ export async function getDashboardStats() {
 // ── Channel categories ──────────────────────────────────────────────
 
 export async function addChannelCategory(channelId: string, categoryName: string) {
-  await getUserId();
+  const userId = await getUserId();
+  await assertUserOwnsChannel(userId, channelId);
   const name = categoryName.trim();
   if (!name) throw new Error("Category name is required");
 
@@ -310,7 +322,8 @@ export async function addChannelCategory(channelId: string, categoryName: string
 }
 
 export async function removeChannelCategory(channelId: string, categoryName: string) {
-  await getUserId();
+  const userId = await getUserId();
+  await assertUserOwnsChannel(userId, channelId);
   const name = categoryName.trim();
   if (!name) throw new Error("Category name is required");
 
@@ -343,7 +356,8 @@ export async function removeChannelCategory(channelId: string, categoryName: str
 // ── Transcript actions ──────────────────────────────────────────────
 
 export async function fetchAndStoreTranscript(videoId: string) {
-  await getUserId();
+  const userId = await getUserId();
+  await assertUserCanAccessVideo(userId, videoId);
 
   const result = await fetchVideoTranscript(videoId);
 
@@ -378,7 +392,10 @@ export async function getTranscriptStats() {
 }
 
 export async function fetchTranscriptsBatch(videoIds: string[]) {
-  await getUserId();
+  const userId = await getUserId();
+  for (const videoId of videoIds) {
+    await assertUserCanAccessVideo(userId, videoId);
+  }
 
   const results = [];
   for (const videoId of videoIds) {
@@ -408,7 +425,8 @@ export async function fetchTranscriptsBatch(videoIds: string[]) {
 }
 
 export async function getChannelVideosWithoutTranscript(channelId: string) {
-  await getUserId();
+  const userId = await getUserId();
+  await assertUserOwnsChannel(userId, channelId);
 
   const videos = await prisma.video.findMany({
     where: {
@@ -455,7 +473,8 @@ export async function generateVideoTags(videoId: string): Promise<
   | { success: true; tags: { name: string; score: number }[] }
   | { success: false; error: string }
 > {
-  await getUserId();
+  const userId = await getUserId();
+  await assertUserCanAccessVideo(userId, videoId);
 
   const video = await prisma.video.findUnique({
     where: { id: videoId },
@@ -664,7 +683,8 @@ export async function generateTagsForAll(limit = 100) {
 }
 
 export async function generateTagsForChannel(channelId: string) {
-  await getUserId();
+  const userId = await getUserId();
+  await assertUserOwnsChannel(userId, channelId);
 
   const videos = await prisma.video.findMany({
     where: { channelId },
@@ -1074,7 +1094,8 @@ export async function setMinDurationSetting(value: number) {
 // ── Batch tag generation helpers ──────────────────────────────────────
 
 export async function getChannelVideoIds(channelId: string) {
-  await getUserId();
+  const userId = await getUserId();
+  await assertUserOwnsChannel(userId, channelId);
   const videos = await prisma.video.findMany({
     where: { channelId },
     select: { id: true },
@@ -1084,7 +1105,8 @@ export async function getChannelVideoIds(channelId: string) {
 }
 
 export async function getChannelUntaggedVideoIds(channelId: string) {
-  await getUserId();
+  const userId = await getUserId();
+  await assertUserOwnsChannel(userId, channelId);
   const videos = await prisma.video.findMany({
     where: {
       channelId,
@@ -1290,6 +1312,7 @@ export async function addVideoById(videoId: string) {
 
 export async function removeVideo(videoId: string) {
   const userId = await getUserId();
+  await assertUserCanAccessVideo(userId, videoId);
 
   const userVideo = await prisma.userVideo.findUnique({
     where: { userId_videoId: { userId, videoId } },
@@ -1362,7 +1385,8 @@ export async function setSelectedCategory(category: string | null) {
 }
 
 export async function setVideoCategory(videoId: string, category: string | null) {
-  await getUserId();
+  const userId = await getUserId();
+  await assertUserCanAccessVideo(userId, videoId);
   await prisma.video.update({
     where: { id: videoId },
     data: { category: category || null },

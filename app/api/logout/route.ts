@@ -1,7 +1,7 @@
 import { signOut } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
-  await signOut({ redirectTo: "/login" });
-  return NextResponse.redirect(new URL("/login", "http://localhost:44258"));
+export async function GET(request: NextRequest) {
+  await signOut({ redirect: false });
+  return NextResponse.redirect(new URL("/login", request.url));
 }

@@ -2,6 +2,45 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 
 /**
+ * Verify the user is linked to the given channel.
+ */
+export async function assertUserOwnsChannel(
+  userId: string,
+  channelId: string
+): Promise<void> {
+  const channel = await prisma.channel.findFirst({
+    where: { id: channelId, users: { some: { id: userId } } },
+    select: { id: true },
+  });
+  if (!channel) {
+    throw new Error("Channel not found or access denied");
+  }
+}
+
+/**
+ * Verify the user has access to the given video (via a followed channel or
+ * as a standalone video).
+ */
+export async function assertUserCanAccessVideo(
+  userId: string,
+  videoId: string
+): Promise<void> {
+  const video = await prisma.video.findFirst({
+    where: {
+      id: videoId,
+      OR: [
+        { channel: { users: { some: { id: userId } } } },
+        { userStates: { some: { userId, addedStandalone: true } } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (!video) {
+    throw new Error("Video not found or access denied");
+  }
+}
+
+/**
  * Prisma where clause for videos visible to a user.
  * A video is visible if:
  * - it belongs to a channel the user follows, OR

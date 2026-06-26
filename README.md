@@ -4,7 +4,8 @@ A personal dashboard to track your YouTube subscriptions and video watch progres
 
 ## Features
 
-- **Google OAuth Login** — Connect your YouTube account securely
+- **Email/Password or Google OAuth Login** — Choose your sign-in method
+- **Multi-User Ready** — Each user sees only their own channels, videos, and watch state
 - **Subscription Sync** — Fetch all your subscribed channels via YouTube Data API
 - **Video Tracking** — Sync recent uploads from each channel
 - **Watch Status** — Mark videos as Unwatched, Watching, or Watched
@@ -18,7 +19,7 @@ A personal dashboard to track your YouTube subscriptions and video watch progres
 - **Next.js 16** — App Router, React 19, TypeScript
 - **Tailwind CSS + shadcn/ui** — Styling and components
 - **Prisma 5 + SQLite** — Database ORM
-- **Auth.js (NextAuth v5)** — Google OAuth authentication
+- **Auth.js (NextAuth v5)** — Google OAuth + email/password authentication
 - **YouTube Data API v3** — Fetch subscriptions and videos
 
 ## Getting Started
@@ -35,7 +36,7 @@ npm install
 cp .env.example .env
 ```
 
-Fill in your `AUTH_SECRET`, `AUTH_GOOGLE_ID`, and `AUTH_GOOGLE_SECRET`.
+Fill in your `AUTH_SECRET`. Google OAuth is optional; fill in `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` only if you want to keep Google sign-in.
 
 #### Google OAuth Setup
 
@@ -52,19 +53,46 @@ npx prisma migrate dev
 npx prisma generate
 ```
 
-### 4. Run development server
+### 4. Create a user
+
+Self-registration is disabled. Create the first user from the command line:
+
+```bash
+npx tsx scripts/create-user.ts user@example.com strongpassword "User Name"
+```
+
+Run the same command to update a user's password later.
+
+### 5. Run development server
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:44258](http://localhost:44258) and sign in with Google.
+Open [http://localhost:44258](http://localhost:44258) and sign in with your email and password (or Google, if configured).
 
-### 5. Sync your data
+### 6. Sync your data
 
 After first login, go to **Settings** and click:
 - **Sync Subscriptions** — pulls your subscribed channels
 - **Sync All Videos** — fetches recent uploads from all channels
+
+## Production Deployment
+
+1. Set a strong `AUTH_SECRET`.
+2. Set `AUTH_URL` to your public URL (e.g. `https://knowledge-cloud.example.com`).
+3. Set `AUTH_TRUST_HOST="true"` if you run behind a reverse proxy.
+4. Switch from SQLite to PostgreSQL (or another server database) for multi-user hosting.
+5. Apply database migrations:
+   ```bash
+   npx prisma migrate deploy
+   npx prisma generate
+   ```
+6. Build and start:
+   ```bash
+   npm run build
+   npm run start
+   ```
 
 ## Important Notes
 
