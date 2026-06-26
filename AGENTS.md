@@ -8,7 +8,7 @@ YouTube Subscription Tracker — a personal dashboard web app built with Next.js
 
 - **Framework**: Next.js 16 (App Router, TypeScript)
 - **Styling**: Tailwind CSS v4 + shadcn/ui (Base UI components)
-- **Database**: Prisma 5 + SQLite
+- **Database**: Prisma 5 + PostgreSQL
 - **Auth**: Auth.js (NextAuth v5) with Google OAuth + email/password credentials
 - **API**: YouTube Data API v3
 
@@ -56,7 +56,7 @@ npm run lint     # ESLint
 ## Notes for Agents
 
 - The shadcn/ui setup uses **Base UI** (not Radix), so components like `Button` do **not** support `asChild`. Use `buttonVariants()` + `<Link>` instead.
-- Prisma v5 is used (not v7) for stability. SQLite does not support enums — `VideoStatus` is a string type.
+- Prisma v5 is used (not v7) for stability. `VideoStatus` is kept as a string type for compatibility.
 - Server Actions must return `void` when used as form actions.
 - `revalidatePath` is used after mutations to refresh server components.
 - Email/password users are created via `scripts/create-user.ts`; there is no self-registration UI.

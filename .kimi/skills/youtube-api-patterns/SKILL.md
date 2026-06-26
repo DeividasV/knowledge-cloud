@@ -132,7 +132,7 @@ const existing = await prisma.video.findMany({
 });
 const existingIds = new Set(existing.map(v => v.id));
 
-// Upsert individually (SQLite limitation)
+// Insert new and update existing rows
 for (const v of videoDetails) {
   const data = { id: v.id, title: v.snippet.title, ... };
   if (existingIds.has(v.id)) {
