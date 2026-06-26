@@ -1,8 +1,8 @@
 FROM node:22-slim AS base
 WORKDIR /app
 
-# Prisma 5 needs OpenSSL to detect and load the correct query engine.
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# Prisma 5 needs OpenSSL; curl is used for container healthchecks.
+RUN apt-get update && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
 COPY package.json package-lock.json ./
