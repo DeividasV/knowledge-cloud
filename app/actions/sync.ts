@@ -11,8 +11,6 @@ import {
   getCategoryFromTopics,
   YOUTUBE_CATEGORY_MAP,
   hasYoutubeApiKey,
-  fetchChannelVideosRss,
-  fetchChannelVideosScrape,
 } from "@/lib/youtube";
 
 async function setChannelCategories(channelId: string, categoryNames: string[]) {
@@ -129,58 +127,10 @@ export async function syncChannelVideos(channelId: string) {
       });
     }
   } else {
-    // ── No-auth path: RSS + page scrape ───────────────────────────────
-    let scraped: Array<{ id: string; title: string; description?: string; thumbnail?: string; viewCount?: number | null; publishedAt?: string }> = [];
-
-    // Try RSS first (best data quality, ~15 videos)
-    try {
-      const rssVideos = await fetchChannelVideosRss(channelId);
-      scraped.push(...rssVideos);
-    } catch {
-      // RSS failed, continue with page scrape
-    }
-
-    // Try page scrape for more videos (~30 videos)
-    try {
-      const pageVideos = await fetchChannelVideosScrape(channelId);
-      // Merge: page scrape fills in videos RSS missed
-      const existingIds = new Set(scraped.map((v) => v.id));
-      for (const v of pageVideos) {
-        if (!existingIds.has(v.id)) {
-          scraped.push(v);
-        }
-      }
-    } catch {
-      // Page scrape failed
-    }
-
-    if (scraped.length === 0) {
-      throw new Error(
-        "Could not fetch channel videos. " +
-          "Try adding a YouTube Data API key for reliable syncing."
-      );
-    }
-
-    // Apply max videos limit
-    if (scraped.length > maxVideos) {
-      scraped = scraped.slice(0, maxVideos);
-    }
-
-    for (const v of scraped) {
-      videoDetails.push({
-        id: v.id,
-        title: v.title,
-        description: v.description,
-        thumbnail: v.thumbnail || `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,
-        durationSec: null,
-        viewCount: null,
-        likeCount: null,
-        commentCount: null,
-        youtubeTags: null,
-        publishedAt: v.publishedAt ? new Date(v.publishedAt) : new Date(),
-        category: undefined,
-      });
-    }
+    throw new Error(
+      "YouTube Data API key is not configured. " +
+        "Add YOUTUBE_API_KEY to your .env file to sync channels."
+    );
   }
 
   const existingVideos = await prisma.video.findMany({
