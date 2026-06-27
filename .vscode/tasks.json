@@ -62,7 +62,7 @@
     },
     {
       "label": "$(database)  Prisma Studio",
-      "detail": "Open Prisma Studio to browse SQLite database",
+      "detail": "Open Prisma Studio to browse PostgreSQL database",
       "type": "shell",
       "command": "npx",
       "args": ["prisma", "studio"],
@@ -91,6 +91,28 @@
       },
       "presentation": {
         "group": "db",
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "$(cloud-upload)  Deploy to Production",
+      "detail": "SSH to atlas server, pull latest code, and run deploy.sh",
+      "type": "shell",
+      "command": "ssh",
+      "args": [
+        "atlas@atlas.solutionocean.com",
+        "-p",
+        "2222",
+        "if [ ! -d /home/atlas/knowledge-cloud/.git ]; then git clone https://github.com/DeividasV/knowledge-cloud.git /home/atlas/knowledge-cloud; fi; cd /home/atlas/knowledge-cloud && git pull origin main && ./deploy.sh"
+      ],
+      "problemMatcher": [],
+      "icon": {
+        "id": "cloud-upload",
+        "color": "terminal.ansiGreen"
+      },
+      "presentation": {
+        "group": "deploy",
         "reveal": "always",
         "panel": "shared"
       }
