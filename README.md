@@ -46,6 +46,16 @@ Fill in your `AUTH_SECRET`. Google OAuth is optional; fill in `AUTH_GOOGLE_ID` a
 4. Enable the **YouTube Data API v3** in your project
 5. Copy Client ID and Client Secret to `.env`
 
+#### YouTube Data API Key (required)
+
+A YouTube Data API v3 key is required to sync channels and videos.
+
+1. Enable **YouTube Data API v3** in [Google Cloud Console](https://console.cloud.google.com/apis/library/youtube.googleapis.com)
+2. Create an API key and add it to `.env`:
+   ```env
+   YOUTUBE_API_KEY="your-api-key"
+   ```
+
 ### 3. Start PostgreSQL (local development)
 
 A Docker Compose file is provided for convenience:
