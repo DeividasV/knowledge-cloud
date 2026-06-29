@@ -17,22 +17,28 @@ YouTube Subscription Tracker — a personal dashboard web app built with Next.js
 ```
 app/
   (dashboard)/        # Authenticated routes with sidebar layout
-    page.tsx          # Dashboard
+    page.tsx          # Dashboard with stats, tags, categories
     channels/         # Channel list & detail
-    videos/           # Global video list
-    settings/         # Sync controls
+    videos/           # Global video list with filters/search
+    recommendations/  # Ranked recommendations (50 items + reason filters)
+    tags/             # Tag graph and tag list
+    settings/         # Sync controls and backup
+    loading.tsx       # Route-level skeleton loading states
   login/              # Login page
   api/auth/           # Auth.js API route
 lib/
   prisma.ts           # Singleton Prisma client
   auth.ts             # Auth.js config
-  youtube.ts          # YouTube API helpers
+  nav.ts              # Shared nav items for Sidebar + MobileNav
+  youtube.ts          # YouTube API helpers + typed response shapes
   transcript.ts       # YouTube transcript fetcher
   types.ts            # Shared types (VideoStatus)
 components/
-  ui/                 # shadcn components
-  sidebar.tsx
-  mobile-nav.tsx
+  ui/                 # shadcn/ui Base UI components
+  sidebar.tsx         # Desktop nav + sticky category filter
+  mobile-nav.tsx      # Mobile header + sheet nav
+  command-palette.tsx # Cmd/Ctrl+K search navigation
+  video-card.tsx      # Thumbnail card with status badge + quick actions
   video-status-toggle.tsx
   youtube-icon.tsx
 ```
@@ -60,3 +66,7 @@ npm run lint     # ESLint
 - Server Actions must return `void` when used as form actions.
 - `revalidatePath` is used after mutations to refresh server components.
 - Email/password users are created via `scripts/create-user.ts`; there is no self-registration UI.
+- Navigation items live in `lib/nav.ts` and are consumed by both `Sidebar` and `MobileNav`.
+- Images use `next/image`. External domains (`i.ytimg.com`, `yt3.ggpht.com`, `*.googleusercontent.com`) are configured in `next.config.ts`.
+- Route-level skeleton screens live in `app/(dashboard)/**/loading.tsx`.
+- `npm run lint -- --max-warnings=0` and `npx tsc --noEmit` must pass before merging.
