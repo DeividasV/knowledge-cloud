@@ -19,7 +19,7 @@ export default async function RecommendationsPage() {
 
   const recommendations = await getRecommendations({
     category: selectedCategory ?? undefined,
-    limit: 12,
+    limit: 50,
   });
 
   return (
