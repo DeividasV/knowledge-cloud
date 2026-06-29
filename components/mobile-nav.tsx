@@ -7,6 +7,7 @@ import { YouTubeIcon } from "@/components/youtube-icon";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Separator } from "@/components/ui/separator";
+import { CommandPalette } from "@/components/command-palette";
 import { setSelectedCategory } from "@/app/actions/videos";
 import { navItems } from "@/lib/nav";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ export function MobileNav({
         <span className="text-lg font-semibold">YT Tracker</span>
       </div>
       <div className="flex items-center gap-2">
+        <CommandPalette />
         <ThemeToggle />
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted h-8 w-8">
