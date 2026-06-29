@@ -18,31 +18,43 @@ interface Category {
   name: string;
 }
 
+interface Tag {
+  id: string;
+  name: string;
+}
+
 export function MobileNav({
   categories,
   selectedCategory,
+  tags,
+  appVersion,
 }: {
   categories: Category[];
   selectedCategory: string | null;
+  tags: Tag[];
+  appVersion: string;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   return (
-    <div className="lg:hidden flex h-16 items-center justify-between border-b bg-card px-4">
-      <div className="flex items-center gap-2">
-        <YouTubeIcon className="h-6 w-6 text-primary" />
-        <span className="text-lg font-semibold">YT Tracker</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <CommandPalette />
-        <ThemeToggle />
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted h-8 w-8">
-            <Menu className="h-5 w-5" />
-          </SheetTrigger>
-          <SheetContent side="left" className="w-64">
+    <div className="lg:hidden flex flex-col gap-2 border-b bg-card px-4 py-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <YouTubeIcon className="h-6 w-6 text-primary" />
+          <span className="text-lg font-semibold">YT Tracker</span>
+          <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">
+            v{appVersion}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted h-8 w-8">
+              <Menu className="h-5 w-5" />
+            </SheetTrigger>
+            <SheetContent side="left" className="w-64">
             <SheetTitle className="sr-only">Navigation</SheetTitle>
             <nav className="mt-6 space-y-1">
               {navItems.map((item) => {
@@ -129,5 +141,7 @@ export function MobileNav({
         </Sheet>
       </div>
     </div>
+    <CommandPalette tags={tags} />
+  </div>
   );
 }

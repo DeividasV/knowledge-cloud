@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/sidebar";
 import { MobileNav } from "@/components/mobile-nav";
+import packageJson from "@/package.json";
 
 export default async function DashboardLayout({
   children,
@@ -17,7 +18,7 @@ export default async function DashboardLayout({
 
   const userId = session.user.id!;
 
-  const [channelCategories, videoCategoriesRaw, user] = await Promise.all([
+  const [channelCategories, videoCategoriesRaw, user, tags] = await Promise.all([
     prisma.category.findMany({
       where: { channels: { some: { users: { some: { id: userId } } } } },
       orderBy: { name: "asc" },
@@ -38,6 +39,22 @@ export default async function DashboardLayout({
       where: { id: userId },
       select: { selectedCategory: true },
     }),
+    prisma.tag.findMany({
+      where: {
+        videoTags: {
+          some: {
+            video: {
+              OR: [
+                { channel: { users: { some: { id: userId } } } },
+                { userStates: { some: { userId, addedStandalone: true } } },
+              ],
+            },
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
 
   // Merge channel categories and video-level categories, deduplicated by name
@@ -54,16 +71,22 @@ export default async function DashboardLayout({
       return { id: fromChannel?.id ?? `video-cat-${name}`, name };
     });
 
+  const appVersion = packageJson.version;
+
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
       <MobileNav
         categories={categories}
         selectedCategory={user?.selectedCategory ?? null}
+        tags={tags}
+        appVersion={appVersion}
       />
       <Sidebar
         user={session.user}
         categories={categories}
         selectedCategory={user?.selectedCategory ?? null}
+        tags={tags}
+        appVersion={appVersion}
       />
       <main className="flex-1 p-4 lg:p-8 overflow-auto">
         {children}
