@@ -3,25 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Tv, PlaySquare, Settings, LogOut, Moon, Sun, Network, List, Sparkles, Database } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CategorySidebarFilter } from "@/components/category-sidebar-filter";
+import { navItems } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/channels", label: "Channels", icon: Tv },
-  { href: "/videos", label: "Videos", icon: PlaySquare },
-  { href: "/recommendations", label: "Recommendations", icon: Sparkles },
-  { href: "/tags", label: "Tag Graph", icon: Network },
-  { href: "/tags/list", label: "Tag List", icon: List },
-  { href: "/backup", label: "Backup", icon: Database },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
 
 interface Category {
   id: string;

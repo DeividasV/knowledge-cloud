@@ -2,26 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Tv, PlaySquare, Settings, Menu, Network, List, Tag, Check, Sparkles, Database } from "lucide-react";
+import { Menu, Tag, Check } from "lucide-react";
 import { YouTubeIcon } from "@/components/youtube-icon";
-import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Separator } from "@/components/ui/separator";
 import { setSelectedCategory } from "@/app/actions/videos";
+import { navItems } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { useState, useTransition } from "react";
-
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/channels", label: "Channels", icon: Tv },
-  { href: "/videos", label: "Videos", icon: PlaySquare },
-  { href: "/recommendations", label: "Recommendations", icon: Sparkles },
-  { href: "/tags", label: "Tag Graph", icon: Network },
-  { href: "/tags/list", label: "Tag List", icon: List },
-  { href: "/backup", label: "Backup", icon: Database },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
 
 interface Category {
   id: string;

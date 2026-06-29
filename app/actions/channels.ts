@@ -3,12 +3,12 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { assertUserOwnsChannel } from "@/lib/video-access";
 import {
   resolveChannel,
   resolveChannelFallback,
   fetchChannelDetailsById,
   getCategoryFromTopics,
+  type YouTubeChannel,
 } from "@/lib/youtube";
 
 async function getUserId(): Promise<string> {
@@ -41,23 +41,9 @@ async function setChannelCategories(channelId: string, categoryNames: string[]) 
   });
 }
 
-async function propagateChannelCategoryToVideos(channelId: string) {
-  const channel = await prisma.channel.findUnique({
-    where: { id: channelId },
-    include: { categories: { orderBy: { name: "asc" } } },
-  });
-  if (!channel || channel.categories.length === 0) return;
-
-  const primaryCategory = channel.categories[0].name;
-  await prisma.video.updateMany({
-    where: { channelId },
-    data: { category: primaryCategory },
-  });
-}
-
-async function upsertChannelFromApiItem(ch: any) {
+async function upsertChannelFromApiItem(ch: YouTubeChannel) {
   const uploadsPlaylistId = ch.contentDetails?.relatedPlaylists?.uploads;
-  const topicIds = ch.topicDetails?.topicIds as string[] | undefined;
+  const topicIds = ch.topicDetails?.topicIds;
   const detectedCategories: string[] = [];
   if (topicIds) {
     for (const id of topicIds) {
@@ -100,8 +86,8 @@ export async function addChannelByUrl(url: string) {
   let data;
   try {
     data = await resolveChannel(url);
-  } catch (e: any) {
-    if (e?.message?.includes("YOUTUBE_API_KEY is not configured")) {
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message.includes("YOUTUBE_API_KEY is not configured")) {
       data = await resolveChannelFallback(url);
     } else {
       throw e;

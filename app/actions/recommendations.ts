@@ -81,7 +81,7 @@ export async function getRecommendations(options: {
   }
 
   // 3. Filter to unwatched candidates
-  let candidates = allVideos.filter((v) => {
+  const candidates = allVideos.filter((v) => {
     const status = v.userStates[0]?.status ?? "UNWATCHED";
     return status !== "WATCHED" && status !== "NOT_INTERESTED";
   });
@@ -122,12 +122,6 @@ export async function getRecommendations(options: {
 
   // 6. Compute max values for normalization
   const now = Date.now();
-  const maxDaysAgo = Math.max(
-    ...videoDetails.map((v) =>
-      Math.min(365, (now - new Date(v.publishedAt).getTime()) / (1000 * 60 * 60 * 24))
-    ),
-    1
-  );
   const maxViewCount = Math.max(
     ...videoDetails.map((v) => v.viewCount ?? 0),
     1
@@ -152,6 +146,7 @@ export async function getRecommendations(options: {
     popularityScore: number;
     channelQualityScore: number;
     baseScore: number;
+    diversityScore?: number;
     reasons: string[];
   }
 
@@ -270,10 +265,10 @@ export async function getRecommendations(options: {
       }
       // Diversity factor: 1.0 for no overlap, decreasing with overlap
       const diversityFactor = Math.pow(0.82, overlap);
-      (cand as any).diversityScore = cand.baseScore * diversityFactor;
+      cand.diversityScore = cand.baseScore * diversityFactor;
     }
 
-    remaining.sort((a, b) => (b as any).diversityScore - (a as any).diversityScore);
+    remaining.sort((a, b) => (b.diversityScore ?? 0) - (a.diversityScore ?? 0));
     const pick = remaining.shift()!;
     selected.push(pick);
     for (const vt of pick.video.videoTags) {

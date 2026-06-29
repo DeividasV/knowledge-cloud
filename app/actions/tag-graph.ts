@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { Prisma } from "@prisma/client";
 
 export interface TagGraphNode {
   id: string;
@@ -33,7 +34,7 @@ export async function getTagGraph(
   const userId = session.user.id;
 
   // Build channel filter
-  const channelWhere: any = { users: { some: { id: userId } } };
+  const channelWhere: Prisma.ChannelWhereInput = { users: { some: { id: userId } } };
   if (categoryNames && categoryNames.length > 0) {
     channelWhere.categories = { some: { name: { in: categoryNames } } };
   }
@@ -174,7 +175,7 @@ export async function getVideosForTag(
   if (!session?.user?.id) throw new Error("Not authenticated");
   const userId = session.user.id;
 
-  const channelWhere: any = { users: { some: { id: userId } } };
+  const channelWhere: Prisma.ChannelWhereInput = { users: { some: { id: userId } } };
   if (categoryNames && categoryNames.length > 0) {
     channelWhere.categories = { some: { name: { in: categoryNames } } };
   }

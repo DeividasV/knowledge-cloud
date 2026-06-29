@@ -14,13 +14,8 @@ import {
 import {
   ArrowLeft,
   Tag,
-  Eye,
-  EyeOff,
-  XCircle,
-  ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Hash,
 } from "lucide-react";
 import { SearchInput } from "@/components/search-input";
 import { Pagination } from "@/components/pagination";

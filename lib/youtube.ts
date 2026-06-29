@@ -10,6 +10,104 @@ export function hasYoutubeApiKey(): boolean {
   return !!API_KEY;
 }
 
+// ── Shared API response shapes ────────────────────────────────────────
+
+export interface YouTubeThumbnail {
+  url: string;
+  width?: number;
+  height?: number;
+}
+
+export interface YouTubeThumbnails {
+  default?: YouTubeThumbnail;
+  medium?: YouTubeThumbnail;
+  high?: YouTubeThumbnail;
+}
+
+export interface YouTubeApiListResponse<T> {
+  items?: T[];
+  nextPageToken?: string;
+}
+
+// ── Channel shapes ────────────────────────────────────────────────────
+
+export interface YouTubeChannelSnippet {
+  title: string;
+  description?: string;
+  thumbnails?: YouTubeThumbnails;
+}
+
+export interface YouTubeChannelContentDetails {
+  relatedPlaylists?: {
+    uploads?: string | null;
+  };
+}
+
+export interface YouTubeChannelStatistics {
+  subscriberCount?: string;
+  videoCount?: string;
+  viewCount?: string;
+}
+
+export interface YouTubeChannelTopicDetails {
+  topicIds?: string[];
+}
+
+export interface YouTubeChannel {
+  id: string;
+  snippet: YouTubeChannelSnippet;
+  contentDetails?: YouTubeChannelContentDetails;
+  statistics?: YouTubeChannelStatistics;
+  topicDetails?: YouTubeChannelTopicDetails;
+}
+
+// ── Video shapes ──────────────────────────────────────────────────────
+
+export interface YouTubeVideoSnippet {
+  title: string;
+  description?: string;
+  publishedAt: string;
+  thumbnails?: YouTubeThumbnails;
+  channelId?: string | null;
+  channelTitle?: string;
+  categoryId?: string;
+  tags?: string[];
+}
+
+export interface YouTubeVideoContentDetails {
+  duration?: string;
+}
+
+export interface YouTubeVideoStatistics {
+  viewCount?: string;
+  likeCount?: string;
+  commentCount?: string;
+}
+
+export interface YouTubeVideo {
+  id: string;
+  snippet: YouTubeVideoSnippet;
+  contentDetails?: YouTubeVideoContentDetails;
+  statistics?: YouTubeVideoStatistics;
+}
+
+// ── Playlist item shapes ──────────────────────────────────────────────
+
+export interface YouTubePlaylistItemSnippet {
+  resourceId?: {
+    videoId?: string;
+  };
+  title?: string;
+  description?: string;
+  thumbnails?: YouTubeThumbnails;
+  publishedAt?: string;
+}
+
+export interface YouTubePlaylistItem {
+  id: string;
+  snippet: YouTubePlaylistItemSnippet;
+}
+
 // ── URL parsers ───────────────────────────────────────────────────────
 
 const CHANNEL_URL_PATTERNS = [
@@ -71,7 +169,7 @@ export function extractVideoId(input: string): string | null {
 
 // ── API calls (API key based) ─────────────────────────────────────────
 
-export async function fetchChannelDetailsById(channelId: string) {
+export async function fetchChannelDetailsById(channelId: string): Promise<YouTubeApiListResponse<YouTubeChannel>> {
   const params = apiKeyParam();
   params.set("part", "snippet,contentDetails,statistics,topicDetails");
   params.set("id", channelId);
@@ -88,7 +186,7 @@ export async function fetchChannelDetailsById(channelId: string) {
   return res.json();
 }
 
-export async function fetchChannelDetailsByHandle(handle: string) {
+export async function fetchChannelDetailsByHandle(handle: string): Promise<YouTubeApiListResponse<YouTubeChannel>> {
   const params = apiKeyParam();
   params.set("part", "snippet,contentDetails,statistics,topicDetails");
   params.set("forHandle", handle.startsWith("@") ? handle : `@${handle}`);
@@ -105,7 +203,7 @@ export async function fetchChannelDetailsByHandle(handle: string) {
   return res.json();
 }
 
-export async function resolveChannel(input: string) {
+export async function resolveChannel(input: string): Promise<YouTubeApiListResponse<YouTubeChannel>> {
   const identifier = extractChannelIdentifier(input);
   if (!identifier) throw new Error("Invalid channel URL or identifier");
 
@@ -117,7 +215,7 @@ export async function resolveChannel(input: string) {
 
 // ── Fallback: scrape YouTube channel page (no API key) ─────────────────
 
-async function scrapeChannelPage(url: string): Promise<any> {
+async function scrapeChannelPage(url: string): Promise<YouTubeApiListResponse<YouTubeChannel>> {
   const res = await fetch(url, {
     headers: {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -167,17 +265,17 @@ async function scrapeChannelPage(url: string): Promise<any> {
         },
       },
       statistics: {
-        subscriberCount: null,
-        videoCount: null,
+        subscriberCount: undefined,
+        videoCount: undefined,
       },
       topicDetails: {
-        topicIds: [] as string[],
+        topicIds: [],
       },
     }],
   };
 }
 
-export async function resolveChannelFallback(input: string) {
+export async function resolveChannelFallback(input: string): Promise<YouTubeApiListResponse<YouTubeChannel>> {
   const identifier = extractChannelIdentifier(input);
   if (!identifier) throw new Error("Invalid channel URL or identifier");
 
@@ -191,7 +289,7 @@ export async function resolveChannelFallback(input: string) {
   return scrapeChannelPage(pageUrl);
 }
 
-export async function fetchPlaylistItems(playlistId: string, pageToken?: string) {
+export async function fetchPlaylistItems(playlistId: string, pageToken?: string): Promise<YouTubeApiListResponse<YouTubePlaylistItem>> {
   const params = apiKeyParam();
   params.set("part", "snippet");
   params.set("playlistId", playlistId);
@@ -209,7 +307,7 @@ export async function fetchPlaylistItems(playlistId: string, pageToken?: string)
   return res.json();
 }
 
-export async function fetchVideoDetails(videoIds: string[]) {
+export async function fetchVideoDetails(videoIds: string[]): Promise<YouTubeApiListResponse<YouTubeVideo>> {
   if (videoIds.length === 0) return { items: [] };
 
   const params = apiKeyParam();
@@ -228,7 +326,7 @@ export async function fetchVideoDetails(videoIds: string[]) {
   return res.json();
 }
 
-export async function fetchVideoById(videoId: string) {
+export async function fetchVideoById(videoId: string): Promise<YouTubeVideo | null> {
   const data = await fetchVideoDetails([videoId]);
   return data.items?.[0] ?? null;
 }
@@ -237,7 +335,7 @@ export async function fetchVideoById(videoId: string) {
  * Fallback video metadata fetcher using noembed (no API key required).
  * Returns data shaped like the YouTube Data API response.
  */
-export async function fetchVideoByIdFallback(videoId: string): Promise<any> {
+export async function fetchVideoByIdFallback(videoId: string): Promise<YouTubeVideo> {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
   const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`, {
     next: { revalidate: 0 },
@@ -247,27 +345,31 @@ export async function fetchVideoByIdFallback(videoId: string): Promise<any> {
     throw new Error(`noembed fetch failed: ${res.status}`);
   }
 
-  const data = await res.json();
+  // noembed returns an ad-hoc JSON object; treat it as unknown and narrow the fields we need.
+  const data = (await res.json()) as Record<string, unknown>;
 
   // Try to extract channel identifier from author_url
   let channelId: string | null = null;
-  const authorUrl = data.author_url || "";
+  const authorUrl = typeof data.author_url === "string" ? data.author_url : "";
   const channelMatch = authorUrl.match(/youtube\.com\/channel\/(UC[a-zA-Z0-9_-]{22})/);
   if (channelMatch) {
     channelId = channelMatch[1];
   }
 
+  const thumbnailUrl = typeof data.thumbnail_url === "string" ? data.thumbnail_url : null;
+
   return {
+    id: videoId,
     snippet: {
-      title: data.title || "Unknown title",
+      title: typeof data.title === "string" ? data.title : "Unknown title",
       description: "",
       thumbnails: {
-        medium: { url: data.thumbnail_url || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg` },
-        default: { url: data.thumbnail_url || `https://i.ytimg.com/vi/${videoId}/default.jpg` },
+        medium: { url: thumbnailUrl || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg` },
+        default: { url: thumbnailUrl || `https://i.ytimg.com/vi/${videoId}/default.jpg` },
       },
       publishedAt: new Date().toISOString(),
       channelId,
-      channelTitle: data.author_name || "Unknown channel",
+      channelTitle: typeof data.author_name === "string" ? data.author_name : "Unknown channel",
       categoryId: undefined,
     },
     contentDetails: {

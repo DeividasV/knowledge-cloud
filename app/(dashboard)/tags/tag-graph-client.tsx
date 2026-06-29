@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { TagGraph } from "@/components/tag-graph";
 import { TagGraphData, getTagGraph } from "@/app/actions/tag-graph";
@@ -20,13 +20,9 @@ export function TagGraphClient({
   initialSelectedCategories?: string[];
 }) {
   const router = useRouter();
-  const [graph, setGraph] = useState<TagGraphData>(initialGraph);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(initialSelectedCategories);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Load saved selection from localStorage only if no initial selection provided
-  useEffect(() => {
-    if (initialSelectedCategories.length > 0) return;
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
+    if (initialSelectedCategories.length > 0) return initialSelectedCategories;
+    if (typeof window === "undefined") return [];
     try {
       const saved = localStorage.getItem(LS_KEY);
       if (saved) {
@@ -34,15 +30,22 @@ export function TagGraphClient({
         if (Array.isArray(parsed)) {
           // Only keep categories that still exist
           const valid = parsed.filter((c) => categories.includes(c));
-          if (valid.length > 0) {
-            setSelectedCategories(valid);
-          }
+          if (valid.length > 0) return valid;
         }
       }
     } catch {
       // ignore parse errors
     }
-  }, [categories, initialSelectedCategories]);
+    return [];
+  });
+  const [fetchedGraph, setFetchedGraph] = useState<TagGraphData | null>(null);
+  const [lastFetchedKey, setLastFetchedKey] = useState<string | null>(null);
+
+  const graph =
+    selectedCategories.length === 0 ? initialGraph : (fetchedGraph ?? initialGraph);
+  const isLoading =
+    selectedCategories.length > 0 &&
+    lastFetchedKey !== selectedCategories.join(",");
 
   // Save to localStorage when selection changes
   useEffect(() => {
@@ -55,20 +58,15 @@ export function TagGraphClient({
 
   // Refetch graph when categories change
   useEffect(() => {
-    if (selectedCategories.length === 0) {
-      setGraph(initialGraph);
-      return;
-    }
+    if (selectedCategories.length === 0) return;
+    const key = selectedCategories.join(",");
+    if (key === lastFetchedKey) return;
 
-    setIsLoading(true);
-    getTagGraph(150, 2, selectedCategories)
-      .then((newGraph) => {
-        setGraph(newGraph);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, [selectedCategories, initialGraph]);
+    getTagGraph(150, 2, selectedCategories).then((newGraph) => {
+      setFetchedGraph(newGraph);
+      setLastFetchedKey(key);
+    });
+  }, [selectedCategories, lastFetchedKey]);
 
   const toggleCategory = useCallback((name: string) => {
     setSelectedCategories((prev) =>

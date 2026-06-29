@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,26 +49,17 @@ export default async function ChannelsPage({
       : {}),
   };
 
-  const [channels, allCategories] = await Promise.all([
-    prisma.channel.findMany({
-      where,
-      include: {
-        _count: { select: { videos: true } },
-        videos: {
-          select: { id: true, durationSec: true },
-        },
-        categories: true,
+  const channels = await prisma.channel.findMany({
+    where,
+    include: {
+      _count: { select: { videos: true } },
+      videos: {
+        select: { id: true, durationSec: true },
       },
-      orderBy: { title: "asc" },
-    }),
-    prisma.category.findMany({
-      where: { channels: { some: { users: { some: { id: userId } } } } },
-      include: {
-        _count: { select: { channels: true } },
-      },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+      categories: true,
+    },
+    orderBy: { title: "asc" },
+  });
 
   const totalChannels = await prisma.channel.count({
     where: { users: { some: { id: userId } } },
@@ -187,7 +179,7 @@ export default async function ChannelsPage({
           {totalChannels} shown)
           {selectedCategory && (
             <span className="ml-1 text-primary font-medium">
-              · filtered by "{selectedCategory}"
+              · filtered by &quot;{selectedCategory}&quot;
             </span>
           )}
         </p>
@@ -220,10 +212,12 @@ export default async function ChannelsPage({
               <Link href={`/channels/${channel.id}`} className="block">
                 <div className="aspect-video bg-muted relative">
                   {channel.thumbnail ? (
-                    <img
+                    <Image
                       src={channel.thumbnail}
                       alt={channel.title}
-                      className="h-full w-full object-cover"
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center">

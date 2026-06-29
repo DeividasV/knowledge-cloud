@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -108,7 +109,7 @@ export default async function SettingsPage() {
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {ch.thumbnail ? (
-                        <img src={ch.thumbnail} alt="" className="h-8 w-8 rounded object-cover shrink-0" />
+                        <Image src={ch.thumbnail} alt="" width={32} height={32} className="rounded object-cover shrink-0" />
                       ) : (
                         <div className="h-8 w-8 rounded bg-muted shrink-0" />
                       )}

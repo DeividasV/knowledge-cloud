@@ -14,7 +14,7 @@ export function VideoTranscriptStatic({
   transcript: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [localTranscript, setLocalTranscript] = useState(transcript);
+  const [localTranscript] = useState(transcript);
   const [error, setError] = useState<string | null>(null);
 
   const handleFetch = () => {
@@ -25,8 +25,9 @@ export function VideoTranscriptStatic({
         if (result.success) {
           window.location.reload();
         }
-      } catch (e: any) {
-        setError(e.message || "Failed to fetch transcript.");
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Failed to fetch transcript.";
+        setError(message);
       }
     });
   };
