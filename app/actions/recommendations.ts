@@ -167,6 +167,13 @@ export async function getRecommendations(options: {
     let tagWeightSum = 0;
     const reasons: string[] = [];
 
+    let bestInterestTag = "";
+    let bestCompletionTag = "";
+    let bestVolumeTag = "";
+    let bestInterest = -Infinity;
+    let bestCompletion = -Infinity;
+    let bestVolume = -Infinity;
+
     for (const vt of v.videoTags) {
       const metrics = tagMetrics.get(vt.tag.name);
       if (!metrics) continue;
@@ -190,6 +197,20 @@ export async function getRecommendations(options: {
       // Volume: how many videos exist for this tag
       const volume = Math.log(metrics.totalVideos + 1) / Math.log(maxTagVolume + 1);
       tagVolumeSum += volume * weight;
+
+      // Track the strongest tag for each metric so we can explain the reason
+      if (interestRatio * weight > bestInterest) {
+        bestInterest = interestRatio * weight;
+        bestInterestTag = vt.tag.name;
+      }
+      if (completionBonus * weight > bestCompletion) {
+        bestCompletion = completionBonus * weight;
+        bestCompletionTag = vt.tag.name;
+      }
+      if (volume * weight > bestVolume) {
+        bestVolume = volume * weight;
+        bestVolumeTag = vt.tag.name;
+      }
     }
 
     const interestScore = tagWeightSum > 0 ? tagInterestSum / tagWeightSum : 0.5;
@@ -210,10 +231,28 @@ export async function getRecommendations(options: {
 
     // Build reasons
     if (recencyScore > 0.8) reasons.push("New");
-    if (interestScore > 0.6) reasons.push("Matches your interests");
-    if (completionBonus > 0.5) reasons.push("Near completion");
-    if (volumeScore > 0.6) reasons.push("Popular topic");
+    if (interestScore > 0.5 && bestInterestTag) {
+      reasons.push(`You watch "${bestInterestTag}"`);
+    }
+    if (completionBonus > 0.35 && bestCompletionTag) {
+      reasons.push(`Almost done with "${bestCompletionTag}"`);
+    }
+    if (volumeScore > 0.5 && bestVolumeTag) {
+      reasons.push(`Popular topic "${bestVolumeTag}"`);
+    }
     if (popularityScore > 0.7) reasons.push("Trending");
+
+    // Always include at least one reason: the strongest signal
+    if (reasons.length === 0) {
+      const scoredReasons = [
+        { label: "New", score: recencyScore },
+        { label: `You watch "${bestInterestTag}"`, score: interestScore, needsTag: bestInterestTag },
+        { label: `Popular topic "${bestVolumeTag}"`, score: volumeScore, needsTag: bestVolumeTag },
+      ].filter((r) => !r.needsTag || r.needsTag);
+      scoredReasons.sort((a, b) => b.score - a.score);
+      const topReason = scoredReasons[0];
+      if (topReason) reasons.push(topReason.label);
+    }
 
     const baseScore =
       recencyScore * 0.25 +
@@ -276,7 +315,7 @@ export async function getRecommendations(options: {
     }
   }
 
-  return selected.map((s) => ({
+  return selected.map((s, index) => ({
     id: s.video.id,
     title: s.video.title,
     thumbnail: s.video.thumbnail,
@@ -290,7 +329,7 @@ export async function getRecommendations(options: {
       score: vt.score,
     })),
     score: s.baseScore,
-    reasons: s.reasons,
+    reasons: index >= 3 ? [...s.reasons, "Diverse pick"] : s.reasons,
     status: s.video.userStates[0]?.status ?? "UNWATCHED",
   }));
 }
