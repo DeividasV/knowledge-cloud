@@ -1,14 +1,24 @@
 "use client";
 
+import { useOptimistic, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
-import { PlaySquare, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  PlaySquare,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  XCircle,
+  Loader2,
+} from "lucide-react";
 import { VideoStatusToggle } from "./video-status-toggle";
 import { VideoTags, VideoTagAction } from "./video-tags";
 import { VideoTranscriptIndicator } from "./video-transcript-indicator";
 import { VideoStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { updateVideoStatus } from "@/app/actions/videos";
 
 export interface VideoCardData {
   id: string;
@@ -24,6 +34,32 @@ export interface VideoCardData {
   }>;
   status: VideoStatus;
 }
+
+const statusConfig: Record<
+  VideoStatus,
+  { label: string; badge: string }
+> = {
+  UNWATCHED: {
+    label: "Unwatched",
+    badge:
+      "bg-background/80 text-muted-foreground border-border",
+  },
+  WATCHING: {
+    label: "Watching",
+    badge:
+      "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900 dark:text-amber-300 dark:border-amber-700",
+  },
+  WATCHED: {
+    label: "Watched",
+    badge:
+      "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900 dark:text-emerald-300 dark:border-emerald-700",
+  },
+  NOT_INTERESTED: {
+    label: "Not interested",
+    badge:
+      "bg-red-100 text-red-700 border-red-300 dark:bg-red-900 dark:text-red-300 dark:border-red-700",
+  },
+};
 
 export function VideoCard({
   video,
@@ -41,18 +77,54 @@ export function VideoCard({
   onSelect?: (id: string) => void;
 }) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [status, setOptimisticStatus] = useOptimistic<VideoStatus, VideoStatus>(
+    video.status,
+    (_, nextStatus) => nextStatus
+  );
 
   const handleCardClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    if (target.closest('button, a, input, label, textarea, [role="button"]')) return;
+    if (target.closest('button, a, input, label, textarea, [role="button"]'))
+      return;
     router.push(href);
   };
+
+  const handleStatusChange = (nextStatus: VideoStatus) => {
+    startTransition(async () => {
+      setOptimisticStatus(nextStatus);
+      await updateVideoStatus(video.id, nextStatus);
+      router.refresh();
+    });
+  };
+
+  const quickActions: Array<{
+    status: VideoStatus;
+    label: string;
+    icon: React.ReactNode;
+  }> = [
+    {
+      status: "WATCHED",
+      label: "Mark as watched",
+      icon: <Eye className="h-3.5 w-3.5" />,
+    },
+    {
+      status: "NOT_INTERESTED",
+      label: "Mark as not interested",
+      icon: <EyeOff className="h-3.5 w-3.5" />,
+    },
+    {
+      status: "UNWATCHED",
+      label: "Mark as unwatched",
+      icon: <XCircle className="h-3.5 w-3.5" />,
+    },
+  ];
 
   return (
     <Card
       onClick={handleCardClick}
       className={cn(
-        "overflow-hidden group transition-colors cursor-pointer",
+        "overflow-hidden group/card transition-colors cursor-pointer",
         isSelected ? "ring-2 ring-primary" : ""
       )}
     >
@@ -93,6 +165,39 @@ export function VideoCard({
             />
           </label>
         )}
+
+        {/* Status badge */}
+        <span
+          className={cn(
+            "absolute top-2 right-2 z-10 rounded-full border px-1.5 py-0.5 text-[10px] font-medium tracking-wide backdrop-blur-sm",
+            statusConfig[status].badge
+          )}
+        >
+          {statusConfig[status].label}
+        </span>
+
+        {/* Desktop quick actions (hover) */}
+        <div className="pointer-events-none hidden md:absolute md:bottom-2 md:right-2 md:z-20 md:flex md:items-center md:gap-1 md:rounded-full md:bg-black/60 md:p-1 md:backdrop-blur-sm md:opacity-0 md:group-hover/card:opacity-100 md:transition-opacity">
+          {quickActions.map((action) => (
+            <Button
+              key={action.status}
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={action.label}
+              title={action.label}
+              disabled={isPending || status === action.status}
+              onClick={() => handleStatusChange(action.status)}
+              className="pointer-events-auto text-white hover:bg-white/20 hover:text-white"
+            >
+              {isPending && status !== action.status ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                action.icon
+              )}
+            </Button>
+          ))}
+        </div>
       </div>
 
       <CardContent className="p-4 space-y-3">
@@ -105,7 +210,7 @@ export function VideoCard({
           </h3>
           <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
         </div>
-        <VideoStatusToggle videoId={video.id} currentStatus={video.status} />
+        <VideoStatusToggle videoId={video.id} currentStatus={status} />
         <div className="flex items-start gap-1.5">
           <div className="flex-1 min-w-0">
             <VideoTags
@@ -128,6 +233,28 @@ export function VideoCard({
               transcript={video.transcript}
             />
           </div>
+        </div>
+
+        {/* Mobile quick actions (always visible) */}
+        <div className="flex md:hidden items-center gap-2 pt-1">
+          {quickActions.map((action) => (
+            <Button
+              key={action.status}
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              aria-label={action.label}
+              title={action.label}
+              disabled={isPending || status === action.status}
+              onClick={() => handleStatusChange(action.status)}
+            >
+              {isPending && status !== action.status ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                action.icon
+              )}
+            </Button>
+          ))}
         </div>
       </CardContent>
     </Card>

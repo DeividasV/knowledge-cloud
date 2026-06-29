@@ -1,9 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getRecommendations } from "@/app/actions/recommendations";
-import { VideoCard } from "@/components/video-card";
-import { VideoStatus } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
+import { RecommendationList } from "./_components/recommendation-list";
 import { Card } from "@/components/ui/card";
 import { Sparkles } from "lucide-react";
 
@@ -51,57 +49,10 @@ export default async function RecommendationsPage() {
           </p>
         </Card>
       ) : (
-        <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {recommendations.map((video) => (
-              <div key={video.id} className="space-y-1.5">
-                <VideoCard
-                  video={{
-                    id: video.id,
-                    title: video.title,
-                    thumbnail: video.thumbnail,
-                    publishedAt: video.publishedAt,
-                    durationSec: video.durationSec,
-                    transcript: null,
-                    videoTags: video.videoTags,
-                    status: video.status as VideoStatus,
-                  }}
-                  href={`/videos/${video.id}?from=${encodeURIComponent("/recommendations")}`}
-                  subtitle={
-                    <>
-                      {video.channel?.title ?? (
-                        <span className="text-amber-600 dark:text-amber-400 font-medium">
-                          Standalone
-                        </span>
-                      )}
-                      · {new Date(video.publishedAt).toLocaleDateString()}
-                      {video.durationSec ? (
-                        <span className="ml-2">
-                          {Math.floor(video.durationSec / 60)}:
-                          {String(video.durationSec % 60).padStart(2, "0")}
-                        </span>
-                      ) : null}
-                    </>
-                  }
-                />
-                {/* Recommendation reasons */}
-                {video.reasons.length > 0 && (
-                  <div className="flex flex-wrap gap-1 px-1">
-                    {video.reasons.map((reason) => (
-                      <Badge
-                        key={reason}
-                        variant="outline"
-                        className="text-[10px] px-1.5 py-0 bg-primary/5 border-primary/20"
-                      >
-                        {reason}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <RecommendationList
+          recommendations={recommendations}
+          selectedCategory={selectedCategory}
+        />
       )}
     </div>
   );
