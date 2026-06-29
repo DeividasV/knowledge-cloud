@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/sidebar";
 import { MobileNav } from "@/components/mobile-nav";
-import packageJson from "@/package.json";
+import { getAppVersion } from "@/lib/version";
 
 export default async function DashboardLayout({
   children,
@@ -71,7 +71,7 @@ export default async function DashboardLayout({
       return { id: fromChannel?.id ?? `video-cat-${name}`, name };
     });
 
-  const appVersion = packageJson.version;
+  const appVersion = getAppVersion();
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">

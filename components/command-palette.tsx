@@ -110,13 +110,15 @@ export function CommandPalette({ tags }: { tags: Tag[] }) {
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted transition-colors",
-          "h-8 px-2 text-xs"
+          "inline-flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted transition-colors",
+          "h-8 px-3 text-xs"
         )}
         aria-label="Open command palette"
       >
-        <Search className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">Search</span>
+        <span className="inline-flex items-center gap-2">
+          <Search className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Search</span>
+        </span>
         <kbd className="hidden sm:inline-flex h-5 items-center rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium">
           ⌘K
         </kbd>
