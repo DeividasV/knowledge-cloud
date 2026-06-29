@@ -20,7 +20,6 @@ import {
   CalendarClock,
 } from "lucide-react";
 import { VideoStatus } from "@/lib/types";
-import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
 import { markAllChannelVideosAsWatched } from "@/app/actions/videos";
 import { syncChannelVideos } from "@/app/actions/sync";
@@ -437,7 +436,6 @@ export default async function ChannelPage({
         </TabsContent>
 
         <TabsContent value="unwatched" className="mt-4">
-          {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideoList
             channelId={channelId}
             userId={userId}
@@ -450,7 +448,6 @@ export default async function ChannelPage({
         </TabsContent>
 
         <TabsContent value="watched" className="mt-4">
-          {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideoList
             channelId={channelId}
             userId={userId}
@@ -463,7 +460,6 @@ export default async function ChannelPage({
         </TabsContent>
 
         <TabsContent value="not-interested" className="mt-4">
-          {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideoList
             channelId={channelId}
             userId={userId}

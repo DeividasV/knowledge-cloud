@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getTagDetailByName } from "@/app/actions/tags";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -22,7 +22,7 @@ interface PageProps {
   searchParams: Promise<{ [key: string]: string | undefined }>;
 }
 
-export default async function TagDetailPage({ params, searchParams }: PageProps) {
+export default async function TagDetailPage({ params }: PageProps) {
   const { tagName: rawTagName } = await params;
   const tagName = decodeURIComponent(rawTagName);
   const detail = await getTagDetailByName(tagName);

@@ -21,14 +21,15 @@ export function TagSettings({
   const [stats, setStats] = useState<{ totalTags: number; taggedVideos: number; untaggedVideos: number } | null>(null);
   const router = useRouter();
 
-  async function loadStats() {
-    const s = await getTagStats();
-    setStats(s);
-  }
-
   // Load stats on mount
   useEffect(() => {
-    loadStats();
+    let active = true;
+    getTagStats().then((s) => {
+      if (active) setStats(s);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {

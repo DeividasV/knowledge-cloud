@@ -137,11 +137,16 @@ Output:`;
       `[Ollama] Tags: raw=${tags.length} → cleaned=${cleaned.length}${scriptDropped > 0 ? ` (dropped ${scriptDropped} wrong-script)` : ""} → deduped=${deduped.length} → final=${result.length}`
     );
     return result;
-  } catch (err: any) {
-    if (err.name === "TimeoutError" || err.message?.includes("timeout")) {
+  } catch (err: unknown) {
+    const isTimeout =
+      (err instanceof Error && err.name === "TimeoutError") ||
+      (err instanceof Error && err.message.includes("timeout"));
+    if (isTimeout) {
       console.error("[Ollama] Request timed out (180s). Transcript may be too long.");
+    } else if (err instanceof Error) {
+      console.error("[Ollama] Generate error:", err.message);
     } else {
-      console.error("[Ollama] Generate error:", err.message || err);
+      console.error("[Ollama] Generate error:", err);
     }
     return null;
   }

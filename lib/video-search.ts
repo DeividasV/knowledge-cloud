@@ -146,6 +146,14 @@ export async function searchVideos({
   const baseWhereClause = await userVideosWhereWithCategory(userId);
   const tabFilter = buildTabFilter(tab, userId);
 
+  type VideoWithIncludes = Prisma.VideoGetPayload<{
+    include: {
+      channel: true;
+      videoTags: { include: { tag: true }; orderBy: { score: "desc" } };
+      userStates: { where: { userId: string } };
+    };
+  }>;
+
   // No search — use efficient Prisma pagination directly
   if (!query || !query.trim()) {
     const where: Prisma.VideoWhereInput =
@@ -172,7 +180,7 @@ export async function searchVideos({
     ]);
 
     return {
-      videos: videos.map((v) => ({ ...(v as any), searchScore: 0 })),
+      videos: videos.map((v) => ({ ...v, searchScore: 0 })) as VideoSearchResult[],
       total,
     };
   }
@@ -199,9 +207,9 @@ export async function searchVideos({
   });
 
   const scored = allVideos.map((video) => ({
-    ...(video as any),
+    ...(video as VideoWithIncludes),
     searchScore: scoreVideo(video, q),
-  }));
+  })) as VideoSearchResult[];
 
   scored.sort((a, b) => {
     if (b.searchScore !== a.searchScore) {

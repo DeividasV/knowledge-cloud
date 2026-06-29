@@ -28,8 +28,9 @@ export async function fetchVideoTranscript(
     const lang = segments[0]?.lang || "unknown";
 
     return { text, segments, lang };
-  } catch (error: any) {
-    console.error(`[Transcript] Failed to fetch for ${videoId}:`, error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[Transcript] Failed to fetch for ${videoId}:`, message);
     return null;
   }
 }

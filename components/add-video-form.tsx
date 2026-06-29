@@ -25,8 +25,9 @@ export function AddVideoForm() {
           setUrl("");
           router.refresh();
         }
-      } catch (e: any) {
-        setError(e.message || "Failed to add video");
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Failed to add video";
+        setError(message);
       }
     });
   };

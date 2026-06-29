@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { PlaySquare, ArrowRight } from "lucide-react";
 import { VideoStatusToggle } from "./video-status-toggle";
@@ -60,10 +61,12 @@ export function VideoCard({
         <div className="block aspect-video bg-muted relative group/link">
           {video.thumbnail ? (
             <>
-              <img
+              <Image
                 src={video.thumbnail}
                 alt={video.title}
-                className="h-full w-full object-cover transition-transform group-hover/link:scale-105"
+                fill
+                className="object-cover transition-transform group-hover/link:scale-105"
+                sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
               />
               <div className="absolute inset-0 bg-black/0 group-hover/link:bg-black/20 transition-colors flex items-center justify-center">
                 <ArrowRight className="h-6 w-6 text-white opacity-0 group-hover/link:opacity-100 transition-opacity" />

@@ -12,6 +12,9 @@ interface TagGraphProps {
   onNodeClick?: (tagId: string) => void;
 }
 
+type SimNode = TagGraphNode & d3.SimulationNodeDatum;
+type SimLink = TagGraphEdge & d3.SimulationLinkDatum<SimNode>;
+
 // Discrete colors for watch status
 function getNodeColor(watchedCount: number, unwatchedCount: number): string {
   if (watchedCount === 0) return "#3b82f6"; // all unwatched → blue
@@ -42,7 +45,7 @@ export function TagGraph({ nodes, edges, onNodeClick }: TagGraphProps) {
   const draw = useCallback(() => {
     if (!svgRef.current || nodes.length === 0) return;
 
-    const svg = d3.select(svgRef.current);
+    const svg = d3.select<SVGSVGElement, unknown>(svgRef.current);
     svg.selectAll("*").remove();
 
     const { width, height } = dimensions;
@@ -52,10 +55,10 @@ export function TagGraph({ nodes, edges, onNodeClick }: TagGraphProps) {
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.1, 4])
-      .on("zoom", (event) => {
-        g.attr("transform", event.transform);
+      .on("zoom", (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
+        g.attr("transform", event.transform.toString());
       });
-    svg.call(zoom as any);
+    svg.call(zoom);
 
     // Scales
     const maxWeight = Math.max(...edges.map((e) => e.weight), 1);
@@ -73,56 +76,63 @@ export function TagGraph({ nodes, edges, onNodeClick }: TagGraphProps) {
       .domain([1, maxWeight])
       .range([0.15, 0.6]);
 
+    const simNodes = nodes as SimNode[];
+    const simEdges = edges as SimLink[];
+
     // Simulation
     const simulation = d3
-      .forceSimulation<TagGraphNode & d3.SimulationNodeDatum>(nodes as any)
+      .forceSimulation<SimNode>(simNodes)
       .force(
         "link",
         d3
-          .forceLink<TagGraphNode & d3.SimulationNodeDatum, any>(edges as any)
-          .id((d: any) => d.id)
-          .distance((d: any) => 150 - Math.min(d.weight * 3, 100))
-          .strength((d: any) => Math.min(d.weight / maxWeight, 0.5))
+          .forceLink<SimNode, SimLink>(simEdges)
+          .id((d) => d.id)
+          .distance((d) => 150 - Math.min(d.weight * 3, 100))
+          .strength((d) => Math.min(d.weight / maxWeight, 0.5))
       )
       .force("charge", d3.forceManyBody().strength(-200))
       .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius((d: any) => radiusScale(d.videoCount) + 5));
+      .force(
+        "collision",
+        d3.forceCollide<SimNode>().radius((d) => radiusScale(d.videoCount) + 5)
+      );
 
     // Edges
     const link = g
       .append("g")
       .attr("stroke", "#94a3b8")
-      .selectAll("line")
-      .data(edges)
+      .selectAll<SVGLineElement, SimLink>("line")
+      .data(simEdges)
       .join("line")
       .attr("stroke-width", (d) => strokeScale(d.weight))
       .attr("stroke-opacity", (d) => opacityScale(d.weight));
 
+    // Drag behavior
+    const drag = d3
+      .drag<SVGGElement, SimNode>()
+      .on("start", (event: d3.D3DragEvent<SVGGElement, SimNode, SimNode>, d) => {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = event.x;
+        d.fy = event.y;
+      })
+      .on("drag", (event: d3.D3DragEvent<SVGGElement, SimNode, SimNode>, d) => {
+        d.fx = event.x;
+        d.fy = event.y;
+      })
+      .on("end", (event: d3.D3DragEvent<SVGGElement, SimNode, SimNode>, d) => {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      });
+
     // Nodes group
     const node = g
       .append("g")
-      .selectAll("g")
-      .data(nodes)
+      .selectAll<SVGGElement, SimNode>("g")
+      .data(simNodes)
       .join("g")
       .attr("cursor", "pointer")
-      .call(
-        d3
-          .drag<any, any>()
-          .on("start", (event, d: any) => {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
-          })
-          .on("drag", (event, d: any) => {
-            d.fx = event.x;
-            d.fy = event.y;
-          })
-          .on("end", (event, d: any) => {
-            if (!event.active) simulation.alphaTarget(0);
-            d.fx = null;
-            d.fy = null;
-          })
-      );
+      .call(drag);
 
     // Background circle (interpolated color)
     node
@@ -134,7 +144,7 @@ export function TagGraph({ nodes, edges, onNodeClick }: TagGraphProps) {
       .attr("opacity", 0.9);
 
     // Pie chart overlay for mixed status
-    node.each(function (d: TagGraphNode) {
+    node.each(function (d: SimNode) {
       const ratio = d.watchedCount / d.videoCount;
       if (ratio > 0 && ratio < 1) {
         const r = radiusScale(d.videoCount) * 0.88;
@@ -155,8 +165,8 @@ export function TagGraph({ nodes, edges, onNodeClick }: TagGraphProps) {
           .selectAll("path")
           .data(pie(data))
           .join("path")
-          .attr("d", arc as any)
-          .attr("fill", (p: any) => p.data[1])
+          .attr("d", (d) => arc(d) ?? "")
+          .attr("fill", (p: d3.PieArcDatum<[number, string]>) => p.data[1])
           .attr("stroke", "rgba(255,255,255,0.6)")
           .attr("stroke-width", 0.75);
       }
@@ -180,12 +190,12 @@ export function TagGraph({ nodes, edges, onNodeClick }: TagGraphProps) {
     // Tick
     simulation.on("tick", () => {
       link
-        .attr("x1", (d: any) => d.source.x)
-        .attr("y1", (d: any) => d.source.y)
-        .attr("x2", (d: any) => d.target.x)
-        .attr("y2", (d: any) => d.target.y);
+        .attr("x1", (d: SimLink) => (d.source as SimNode).x ?? 0)
+        .attr("y1", (d: SimLink) => (d.source as SimNode).y ?? 0)
+        .attr("x2", (d: SimLink) => (d.target as SimNode).x ?? 0)
+        .attr("y2", (d: SimLink) => (d.target as SimNode).y ?? 0);
 
-      node.attr("transform", (d: any) => `translate(${d.x},${d.y})`);
+      node.attr("transform", (d: SimNode) => `translate(${d.x ?? 0},${d.y ?? 0})`);
     });
 
     // Cleanup
@@ -315,6 +325,7 @@ export function TagDetailPanel({ tag, videos, onClose }: TagDetailPanelProps) {
               className="flex gap-3 p-2 rounded-lg hover:bg-muted transition-colors group"
             >
               {video.thumbnail ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={video.thumbnail}
                   alt=""

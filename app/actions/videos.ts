@@ -413,8 +413,9 @@ export async function fetchTranscriptsBatch(videoIds: string[]) {
       } else {
         results.push({ videoId, status: "unavailable" });
       }
-    } catch (e: any) {
-      results.push({ videoId, status: "error", error: e.message });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      results.push({ videoId, status: "error", error: message });
     }
   }
 
@@ -508,14 +509,15 @@ export async function generateVideoTags(videoId: string): Promise<
   let extracted;
   try {
     extracted = await extractVideoTags(video.title, transcript, method, geminiModel, ollamaMaxChunks, tagLanguage, maxTagsPerVideo);
-  } catch (err: any) {
-    if (err?.message?.includes("credits depleted")) {
+  } catch (err: unknown) {
+    const errMessage = err instanceof Error ? err.message : "Unknown error";
+    if (errMessage.includes("credits depleted")) {
       throw err;
     }
     const backend = method === "gemini" ? "Gemini" : "Ollama";
     return {
       success: false,
-      error: `Tag extraction failed via ${backend}: ${err?.message || "Unknown error"}`,
+      error: `Tag extraction failed via ${backend}: ${errMessage}`,
     };
   }
 
@@ -1154,8 +1156,9 @@ export async function generateTagsBatch(videoIds: string[]) {
       } else {
         results.push({ videoId, status: "error", error: result.error });
       }
-    } catch (e: any) {
-      results.push({ videoId, status: "error", error: e.message });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      results.push({ videoId, status: "error", error: message });
     }
   }
   return results;
@@ -1195,8 +1198,8 @@ export async function addVideoByUrl(url: string) {
   let videoData;
   try {
     videoData = await fetchVideoById(videoId);
-  } catch (e: any) {
-    if (e?.message?.includes("YOUTUBE_API_KEY is not configured")) {
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message.includes("YOUTUBE_API_KEY is not configured")) {
       videoData = await fetchVideoByIdFallback(videoId);
     } else {
       throw e;
@@ -1280,7 +1283,7 @@ export async function addVideoByUrl(url: string) {
       title: snippet.title,
       description: snippet.description,
       thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url,
-      durationSec: parseDuration(contentDetails.duration),
+      durationSec: parseDuration(contentDetails?.duration ?? ""),
       viewCount: videoData.statistics?.viewCount ? parseInt(videoData.statistics.viewCount, 10) : null,
       likeCount: videoData.statistics?.likeCount ? parseInt(videoData.statistics.likeCount, 10) : null,
       commentCount: videoData.statistics?.commentCount ? parseInt(videoData.statistics.commentCount, 10) : null,
@@ -1404,7 +1407,6 @@ export async function removeShortVideos() {
     select: { minVideoDurationSec: true },
   });
   const minDuration = user?.minVideoDurationSec ?? 300;
-  const videoWhere = await userVideosWhereWithCategory(userId);
 
   // Find short videos from user's visible channels (exclude standalone videos)
   const shortVideos = await prisma.video.findMany({

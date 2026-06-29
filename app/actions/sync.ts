@@ -8,9 +8,10 @@ import {
   fetchPlaylistItems,
   fetchVideoDetails,
   parseDuration,
-  getCategoryFromTopics,
   YOUTUBE_CATEGORY_MAP,
   hasYoutubeApiKey,
+  type YouTubePlaylistItem,
+  type YouTubeVideo,
 } from "@/lib/youtube";
 
 async function setChannelCategories(channelId: string, categoryNames: string[]) {
@@ -74,7 +75,7 @@ export async function syncChannelVideos(channelId: string) {
     throw new Error("Channel has no uploads playlist");
   }
 
-  let videoDetails: Array<{
+  const videoDetails: Array<{
     id: string;
     title: string;
     description?: string;
@@ -90,7 +91,7 @@ export async function syncChannelVideos(channelId: string) {
 
   if (hasYoutubeApiKey()) {
     // ── API path ──────────────────────────────────────────────────────
-    const allItems: any[] = [];
+    const allItems: YouTubePlaylistItem[] = [];
     let pageToken: string | undefined;
 
     do {
@@ -99,9 +100,11 @@ export async function syncChannelVideos(channelId: string) {
       pageToken = data.nextPageToken;
     } while (pageToken && allItems.length < maxVideos);
 
-    const videoIds = allItems.map((item: any) => item.snippet.resourceId.videoId).filter(Boolean);
+    const videoIds = allItems
+      .map((item) => item.snippet.resourceId?.videoId)
+      .filter((id): id is string => Boolean(id));
 
-    const apiDetails: any[] = [];
+    const apiDetails: YouTubeVideo[] = [];
     for (let i = 0; i < videoIds.length; i += 50) {
       const batch = videoIds.slice(i, i + 50);
       const data = await fetchVideoDetails(batch);
@@ -238,8 +241,9 @@ export async function syncChannelsBatch(channelIds: string[]) {
     try {
       await syncChannelVideos(channelId);
       results.push({ channelId, status: "success" });
-    } catch (e: any) {
-      results.push({ channelId, status: "error", error: e.message });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      results.push({ channelId, status: "error", error: message });
     }
   }
   return results;

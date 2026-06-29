@@ -101,12 +101,10 @@ export default async function DashboardPage() {
 
       {/* ── Tags ────────────────────────── */}
       <div className="grid gap-4">
-        {/* @ts-ignore Next.js 16 async component JSX type bug */}
         <TagDashboardStats />
       </div>
 
       {/* ── Categories ──────────────────────────────────────────── */}
-      {/* @ts-ignore Next.js 16 async component JSX type bug */}
       <CategoryDashboard />
     </div>
   );

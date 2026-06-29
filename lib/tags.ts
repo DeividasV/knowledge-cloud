@@ -453,7 +453,7 @@ export interface TagResult {
 
 export function extractTags(
   title: string,
-  description: string | null,
+  _description: string | null,
   transcript: string | null,
   options: { maxTags?: number; corpusPhrases?: Map<string, number> } = {}
 ): TagResult[] {
@@ -562,7 +562,7 @@ export function buildCorpus(
 ): Map<string, number> {
   const corpus = new Map<string, number>();
 
-  for (const { title, description, transcript } of videoTexts) {
+  for (const { title, transcript } of videoTexts) {
     const titleSentences = splitTextIntoSentences(title);
     const bodySentences = splitTextIntoSentences(transcript || "");
     const docPhrases = new Set<string>();

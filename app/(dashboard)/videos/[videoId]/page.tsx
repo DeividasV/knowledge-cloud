@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -100,7 +101,7 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
 
   // Count other videos with same tag (from user's visible videos)
   const tagIds = tags.map((t) => t.id);
-  let tagCounts: Map<string, number> = new Map();
+  const tagCounts: Map<string, number> = new Map();
 
   if (tagIds.length > 0) {
     const tagCountRows = await prisma.videoTag.groupBy({
@@ -137,10 +138,12 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
         <div className="relative aspect-video bg-muted rounded-lg overflow-hidden group">
           {video.thumbnail ? (
             <>
-              <img
+              <Image
                 src={video.thumbnail}
                 alt={video.title}
-                className="h-full w-full object-cover"
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 60vw"
               />
               <a
                 href={youtubeUrl}

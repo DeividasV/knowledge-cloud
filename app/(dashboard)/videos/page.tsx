@@ -7,9 +7,76 @@ import { Pagination } from "@/components/pagination";
 import { SearchInput } from "@/components/search-input";
 import { AddVideoForm } from "@/components/add-video-form";
 import { userVideosWhereWithCategory } from "@/lib/video-access";
-import { searchVideos } from "@/lib/video-search";
+import { searchVideos, VideoSearchResult } from "@/lib/video-search";
 
 const PAGE_SIZE = 50;
+
+function VideoList({
+  items,
+  from,
+  page,
+  totalPages,
+  query,
+}: {
+  items: VideoSearchResult[];
+  from: string;
+  page: number;
+  totalPages: number;
+  query?: string;
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        {query ? `No videos matching "${query}".` : "No videos found."}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {items.map((video) => (
+          <VideoCard
+            key={video.id}
+            video={{
+              id: video.id,
+              title: video.title,
+              thumbnail: video.thumbnail,
+              publishedAt: video.publishedAt,
+              durationSec: video.durationSec,
+              transcript: video.transcript,
+              videoTags: video.videoTags.map((vt) => ({
+                id: vt.tag.id,
+                name: vt.tag.name,
+                score: vt.score,
+              })),
+              status: (video.userStates[0]?.status as VideoStatus) || "UNWATCHED",
+            }}
+            href={`/videos/${video.id}?from=${encodeURIComponent(from)}`}
+            subtitle={
+              <>
+                {video.channel?.title ?? (
+                  <span className="text-amber-600 dark:text-amber-400 font-medium">
+                    Standalone
+                  </span>
+                )}
+                {video.category ? ` · ${video.category}` : ""}
+                · {new Date(video.publishedAt).toLocaleDateString()}
+                {video.durationSec ? (
+                  <span className="ml-2">
+                    {Math.floor(video.durationSec / 60)}:
+                    {String(video.durationSec % 60).padStart(2, "0")}
+                  </span>
+                ) : null}
+              </>
+            }
+          />
+        ))}
+      </div>
+      <Pagination page={page} totalPages={totalPages} basePath="/videos" />
+    </div>
+  );
+}
 
 export default async function VideosPage({
   searchParams,
@@ -40,7 +107,6 @@ export default async function VideosPage({
 
   const page = Math.max(1, parseInt(pageStr || "1", 10));
 
-  const isStandaloneTab = tab === "standalone";
   const baseWhereClause = await userVideosWhereWithCategory(userId);
 
   // Tab counts (without search filter)
@@ -87,61 +153,6 @@ export default async function VideosPage({
   if (tab && tab !== "all") returnSearch.set("tab", tab);
   const returnUrl = `/videos${returnSearch.toString() ? "?" + returnSearch.toString() : ""}`;
 
-  function VideoList({ items, from }: { items: typeof videos; from: string }) {
-    if (items.length === 0) {
-      return (
-        <div className="text-center py-12 text-muted-foreground">
-          {query ? `No videos matching "${query}".` : "No videos found."}
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {items.map((video) => (
-            <VideoCard
-              key={video.id}
-              video={{
-                id: video.id,
-                title: video.title,
-                thumbnail: video.thumbnail,
-                publishedAt: video.publishedAt,
-                durationSec: video.durationSec,
-                transcript: video.transcript,
-                videoTags: video.videoTags.map((vt) => ({
-                  id: vt.tag.id,
-                  name: vt.tag.name,
-                  score: vt.score,
-                })),
-                status: (video.userStates[0]?.status as VideoStatus) || "UNWATCHED",
-              }}
-              href={`/videos/${video.id}?from=${encodeURIComponent(from)}`}
-              subtitle={
-                <>
-                  {video.channel?.title ?? (
-                    <span className="text-amber-600 dark:text-amber-400 font-medium">
-                      Standalone
-                    </span>
-                  )}
-                  {video.category ? ` · ${video.category}` : ""}
-                  · {new Date(video.publishedAt).toLocaleDateString()}
-                  {video.durationSec ? (
-                    <span className="ml-2">
-                      {Math.floor(video.durationSec / 60)}:
-                      {String(video.durationSec % 60).padStart(2, "0")}
-                    </span>
-                  ) : null}
-                </>
-              }
-            />
-          ))}
-        </div>
-        <Pagination page={page} totalPages={totalPages} basePath="/videos" />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -163,22 +174,19 @@ export default async function VideosPage({
           <TabsTrigger value="standalone">Standalone ({standaloneCount})</TabsTrigger>
         </TabsList>
         <TabsContent value="all" className="mt-4">
-          <VideoList items={videos} from={returnUrl} />
+          <VideoList items={videos} from={returnUrl} page={page} totalPages={totalPages} query={query} />
         </TabsContent>
         <TabsContent value="unwatched" className="mt-4">
-          {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideos userId={userId} tab="unwatched" page={page} query={query} from={returnUrl} />
         </TabsContent>
         <TabsContent value="watched" className="mt-4">
-          {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideos userId={userId} tab="watched" page={page} query={query} from={returnUrl} />
         </TabsContent>
         <TabsContent value="not-interested" className="mt-4">
-          {/* @ts-ignore Next.js 16 async component JSX type bug */}
           <FilteredVideos userId={userId} tab="not-interested" page={page} query={query} from={returnUrl} />
         </TabsContent>
         <TabsContent value="standalone" className="mt-4">
-          <VideoList items={videos} from={returnUrl} />
+          <VideoList items={videos} from={returnUrl} page={page} totalPages={totalPages} query={query} />
         </TabsContent>
       </Tabs>
     </div>
