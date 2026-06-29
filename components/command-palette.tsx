@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Database,
+  Hash,
   LayoutDashboard,
   List,
   Network,
@@ -26,9 +27,10 @@ interface PaletteItem {
   label: string;
   href: string;
   icon: React.ElementType;
+  type: "page" | "tag";
 }
 
-const paletteItems: PaletteItem[] = [
+const pageItems: Omit<PaletteItem, "type">[] = [
   { id: "dashboard", label: "Dashboard", href: "/", icon: LayoutDashboard },
   { id: "channels", label: "Channels", href: "/channels", icon: Tv },
   { id: "videos", label: "Videos", href: "/videos", icon: PlaySquare },
@@ -39,17 +41,36 @@ const paletteItems: PaletteItem[] = [
   { id: "settings", label: "Settings", href: "/settings", icon: Settings },
 ];
 
-export function CommandPalette() {
+interface Tag {
+  id: string;
+  name: string;
+}
+
+export function CommandPalette({ tags }: { tags: Tag[] }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const router = useRouter();
 
+  const allItems = useMemo<PaletteItem[]>(() => {
+    const items: PaletteItem[] = pageItems.map((item) => ({ ...item, type: "page" }));
+    for (const tag of tags) {
+      items.push({
+        id: `tag-${tag.id}`,
+        label: tag.name,
+        href: `/tags/${encodeURIComponent(tag.name)}`,
+        icon: Hash,
+        type: "tag",
+      });
+    }
+    return items;
+  }, [tags]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return paletteItems;
-    return paletteItems.filter((item) => item.label.toLowerCase().includes(q));
-  }, [query]);
+    if (!q) return allItems;
+    return allItems.filter((item) => item.label.toLowerCase().includes(q));
+  }, [query, allItems]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -109,7 +130,7 @@ export function CommandPalette() {
           <div className="flex items-center gap-3 border-b px-4 py-3">
             <Search className="h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search pages..."
+              placeholder="Search pages and tags..."
               className="h-6 border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
               value={query}
               onChange={(e) => {
@@ -144,8 +165,13 @@ export function CommandPalette() {
                             : "text-muted-foreground hover:bg-accent hover:text-foreground"
                         )}
                       >
-                        <Icon className="h-4 w-4" />
-                        {item.label}
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{item.label}</span>
+                        {item.type === "tag" && (
+                          <span className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground">
+                            Tag
+                          </span>
+                        )}
                       </button>
                     </li>
                   );

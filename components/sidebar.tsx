@@ -19,25 +19,39 @@ interface Category {
   name: string;
 }
 
+interface Tag {
+  id: string;
+  name: string;
+}
+
 export function Sidebar({
   user,
   categories,
   selectedCategory,
+  tags,
+  appVersion,
 }: {
   user: { name?: string | null; email?: string | null; image?: string | null };
   categories: Category[];
   selectedCategory: string | null;
+  tags: Tag[];
+  appVersion: string;
 }) {
   const pathname = usePathname();
 
   return (
     <aside className="hidden w-64 flex-col border-r bg-card lg:flex">
-      <div className="flex h-16 items-center justify-between px-4">
+      <div className="flex h-14 items-center justify-between px-4">
         <div className="flex items-center gap-2 px-2">
           <YouTubeIcon className="h-6 w-6 text-primary" />
           <span className="text-lg font-semibold">YT Tracker</span>
+          <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">
+            v{appVersion}
+          </span>
         </div>
-        <CommandPalette />
+      </div>
+      <div className="px-4 pb-3">
+        <CommandPalette tags={tags} />
       </div>
       <Separator />
       <nav className="flex-1 overflow-y-auto">
