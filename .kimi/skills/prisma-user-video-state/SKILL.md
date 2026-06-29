@@ -37,7 +37,7 @@ model UserVideo {
 
 `WATCHED` and `NOT_INTERESTED` always require an existing `UserVideo` row.
 
-**Active statuses**: `UNWATCHED`, `WATCHED`, `NOT_INTERESTED`. `WATCHING` is kept for backward compatibility but not used in the UI.
+**Active statuses**: `UNWATCHED`, `WATCHED`, `NOT_INTERESTED`. `WATCHING` is kept for backward compatibility but rarely used in the UI.
 
 ## Querying by Status
 
@@ -190,6 +190,22 @@ const where = {
   NOT: { userStates: { some: { userId, status: { in: ["WATCHING", "WATCHED", "NOT_INTERESTED"] } } } },
   // For WATCHING/WATCHED:
   // userStates: { some: { userId, status: "WATCHING" } },
+};
+```
+
+## Optimistic UI in VideoCard
+
+`components/video-card.tsx` uses `useOptimistic` to update the status badge immediately while `updateVideoStatus` runs on the server, then calls `router.refresh()` to reconcile.
+
+```ts
+const [optimisticStatus, setOptimisticStatus] = useOptimistic(video.status);
+
+const handleStatusChange = (status: VideoStatus) => {
+  startTransition(async () => {
+    setOptimisticStatus(status);
+    await updateVideoStatus(video.id, status);
+    router.refresh();
+  });
 };
 ```
 

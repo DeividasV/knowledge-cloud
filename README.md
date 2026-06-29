@@ -6,13 +6,19 @@ A personal dashboard to track your YouTube subscriptions and video watch progres
 
 - **Email/Password or Google OAuth Login** — Choose your sign-in method
 - **Multi-User Ready** — Each user sees only their own channels, videos, and watch state
-- **Subscription Sync** — Fetch all your subscribed channels via YouTube Data API
+- **Subscription Sync** — Fetch subscribed channels via YouTube Data API
 - **Video Tracking** — Sync recent uploads from each channel
-- **Watch Status** — Mark videos as Unwatched, Watching, or Watched
-- **Dashboard** — Overview stats, progress bar, recent videos
+- **Watch Status** — Mark videos as Unwatched, Watching, Watched, or Not Interested
+- **Quick Actions** — Hover (or tap on mobile) a video card to update status instantly
+- **Recommendations** — Get up to 50 ranked picks with explainable reason tags
+- **Tag Graph & Tag List** — Explore tags visually and browse by tag
+- **Transcripts** — Fetch and search YouTube transcripts
+- **Categories** — Group channels and filter the whole app by category
+- **Dashboard** — Overview stats, tag summary, and recent activity
 - **Channel Detail** — Browse videos per channel with filter tabs
-- **Global Video List** — All videos with status filters
-- **Settings** — Manual sync controls with quota awareness
+- **Global Video List** — All videos with status filters and search
+- **Command Palette** — Press `Cmd/Ctrl+K` to jump anywhere
+- **Settings** — Manual sync controls, backup, and quota awareness
 
 ## Tech Stack
 
@@ -123,6 +129,23 @@ After first login, go to **Settings** and click:
 - **YouTube API Quota**: The default quota is ~10,000 units/day. Each sync consumes units based on your subscription count. Avoid excessive syncing.
 - **Watch History Limitation**: YouTube's official API does **not** expose personal watch history. Watch status is tracked locally inside this app only.
 - **PostgreSQL**: Requires a running PostgreSQL server. Use the provided `docker-compose.yml` for local development.
+
+## Scripts
+
+```bash
+npm run dev      # Start development server on http://localhost:44258
+npm run build    # Production build
+npm run start    # Start production server
+npm run lint     # ESLint
+```
+
+Before committing, run:
+
+```bash
+npm run lint -- --max-warnings=0
+npx tsc --noEmit
+npm run build
+```
 
 ## License
 

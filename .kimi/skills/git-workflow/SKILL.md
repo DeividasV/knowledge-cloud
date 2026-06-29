@@ -115,6 +115,11 @@ Because `merge.ff` is set to `false`, a plain `git merge` is sufficient:
 ## Important Rules
 
 - Never commit `.env`, `*.db`, or `node_modules`.
-- Always run `npm run build` before merging to ensure TypeScript compiles.
+- Always run these checks before merging:
+  ```bash
+  npm run lint -- --max-warnings=0
+  npx tsc --noEmit
+  npm run build
+  ```
 - Run `npx prisma migrate dev` if you changed `prisma/schema.prisma`.
 - Update `AGENTS.md` if you changed architecture, build steps, or conventions.
