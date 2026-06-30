@@ -55,6 +55,7 @@ model User {
   ollamaMaxChunks        Int         @default(5)
   tagLanguage            String      @default("en")
   selectedCategory       String?
+  lastVisitAt            DateTime?
   createdAt              DateTime    @default(now())
 }
 

@@ -37,7 +37,7 @@ export default async function DashboardLayout({
     }),
     prisma.user.findUnique({
       where: { id: userId },
-      select: { selectedCategory: true },
+      select: { selectedCategory: true, lastVisitAt: true },
     }),
     prisma.tag.findMany({
       where: {
@@ -72,6 +72,11 @@ export default async function DashboardLayout({
     });
 
   const appVersion = getAppVersion();
+
+  // Update lastVisitAt fire-and-forget so the next visit knows what was already seen.
+  void prisma.user
+    .update({ where: { id: userId }, data: { lastVisitAt: new Date() } })
+    .catch((err) => console.error("Failed to update lastVisitAt", err));
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">

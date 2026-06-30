@@ -22,7 +22,7 @@ model UserVideo {
   userId      String
   videoId     String
   status      String   @default("UNWATCHED")  // "UNWATCHED" | "WATCHING" | "WATCHED" | "NOT_INTERESTED"
-  progressSec Int      @default(0)
+  progressSec Int      @default(0)             // Partial watch progress in seconds
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
@@ -211,10 +211,36 @@ const handleStatusChange = (status: VideoStatus) => {
 
 ## Revalidation
 
-After any status mutation, revalidate affected paths:
+After any status or progress mutation, revalidate affected paths:
 
 ```ts
 revalidatePath("/");
 revalidatePath("/videos");
 revalidatePath("/channels/[channelId]");
+revalidatePath("/videos/[videoId]");
+```
+
+## New-Video Detection
+
+`User.lastVisitAt` is updated when the user loads the dashboard. A video is considered "new" if:
+
+```ts
+video.publishedAt > user.lastVisitAt
+```
+
+Query new videos for a user:
+
+```ts
+const newVideos = await prisma.video.findMany({
+  where: {
+    channel: { users: { some: { id: userId } } },
+    publishedAt: { gt: user.lastVisitAt },
+    NOT: {
+      userStates: {
+        some: { userId, status: { in: ["WATCHED", "NOT_INTERESTED"] } },
+      },
+    },
+  },
+  orderBy: { publishedAt: "desc" },
+});
 ```

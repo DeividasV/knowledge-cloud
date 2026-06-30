@@ -9,7 +9,10 @@ A personal dashboard to track your YouTube subscriptions and video watch progres
 - **Subscription Sync** — Fetch subscribed channels via YouTube Data API
 - **Video Tracking** — Sync recent uploads from each channel
 - **Watch Status** — Mark videos as Unwatched, Watching, Watched, or Not Interested
+- **Watch Progress** — Track progress per video and continue watching later
 - **Quick Actions** — Hover (or tap on mobile) a video card to update status instantly
+- **New Videos Badge** — See what's new since your last visit
+- **Continue Watching** — Resume videos you started
 - **Recommendations** — Get up to 50 ranked picks with explainable reason tags
 - **Tag Graph & Tag List** — Explore tags visually and browse by tag
 - **Transcripts** — Fetch and search YouTube transcripts

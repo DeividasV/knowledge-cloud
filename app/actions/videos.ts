@@ -70,6 +70,38 @@ export async function updateVideoStatus(
   return result;
 }
 
+export async function updateVideoProgress(videoId: string, progressSec: number) {
+  const userId = await getUserId();
+  await assertUserCanAccessVideo(userId, videoId);
+
+  const existing = await prisma.userVideo.findUnique({
+    where: { userId_videoId: { userId, videoId } },
+  });
+
+  const progress = Math.max(0, progressSec);
+
+  if (existing) {
+    await prisma.userVideo.update({
+      where: { id: existing.id },
+      data: { progressSec: progress },
+    });
+  } else {
+    await prisma.userVideo.create({
+      data: {
+        userId,
+        videoId,
+        status: "UNWATCHED",
+        progressSec: progress,
+      },
+    });
+  }
+
+  revalidatePath("/");
+  revalidatePath("/videos");
+  revalidatePath("/channels/[channelId]");
+  revalidatePath("/videos/[videoId]");
+}
+
 export async function deleteVideoTags(videoIds: string[]) {
   const userId = await getUserId();
   if (videoIds.length === 0) return { deleted: 0 };
