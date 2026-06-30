@@ -70,3 +70,7 @@ npm run lint     # ESLint
 - Images use `next/image`. External domains (`i.ytimg.com`, `yt3.ggpht.com`, `*.googleusercontent.com`) are configured in `next.config.ts`.
 - Route-level skeleton screens live in `app/(dashboard)/**/loading.tsx`.
 - `npm run lint -- --max-warnings=0` and `npx tsc --noEmit` must pass before merging.
+- App version format is `MAJOR.DEPLOY_COUNT.COMMIT_COUNT`:
+  - `MAJOR` is a manual constant in `lib/version.ts`.
+  - `DEPLOY_COUNT` is maintained on the production server in `.deploy-count` and injected via the `DEPLOY_COUNT` Docker build arg.
+  - `COMMIT_COUNT` is computed from `git rev-list --count main`.
