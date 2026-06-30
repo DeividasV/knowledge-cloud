@@ -46,10 +46,10 @@ components/
 ## Database Schema
 
 Key models:
-- `User` — Auth.js managed user
+- `User` — Auth.js managed user, also tracks `lastVisitAt` for "new" video badges
 - `Channel` — YouTube channel (linked to users via implicit m-n)
 - `Video` — YouTube video metadata + transcript
-- `UserVideo` — Watch status per user per video
+- `UserVideo` — Watch status and `progressSec` per user per video
 
 ## Build Commands
 

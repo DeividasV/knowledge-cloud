@@ -27,6 +27,7 @@ import { VideoTagGenerate } from "@/components/video-tag-generate";
 import { VideoCategoryEditor } from "@/components/video-category-editor";
 import { TagReportClient } from "@/components/tag-report-client";
 import { VideoTranscriptStatic } from "@/components/video-transcript-static";
+import { VideoProgressEditor } from "@/components/video-progress-editor";
 import { userVideosWhere, userVideosWhereWithCategory } from "@/lib/video-access";
 
 function formatNumber(n: number | null | undefined): string {
@@ -75,6 +76,7 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
 
   const currentStatus =
     (video.userStates[0]?.status as VideoStatus) || "UNWATCHED";
+  const progressSec = video.userStates[0]?.progressSec ?? 0;
 
   const youtubeUrl = `https://www.youtube.com/watch?v=${video.id}`;
 
@@ -218,6 +220,12 @@ export default async function VideoDetailPage({ params, searchParams }: PageProp
           <VideoStatusToggle
             videoId={video.id}
             currentStatus={currentStatus}
+          />
+
+          <VideoProgressEditor
+            videoId={video.id}
+            progressSec={progressSec}
+            durationSec={video.durationSec}
           />
 
           <div className="flex gap-2 flex-wrap">

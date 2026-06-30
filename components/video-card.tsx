@@ -33,6 +33,8 @@ export interface VideoCardData {
     score: number;
   }>;
   status: VideoStatus;
+  progressSec?: number | null;
+  isNew?: boolean;
 }
 
 const statusConfig: Record<
@@ -175,6 +177,28 @@ export function VideoCard({
         >
           {statusConfig[status].label}
         </span>
+
+        {/* New badge */}
+        {video.isNew && (
+          <span className="absolute top-2 left-2 z-10 rounded-full bg-primary text-primary-foreground px-1.5 py-0.5 text-[10px] font-medium tracking-wide">
+            New
+          </span>
+        )}
+
+        {/* Watch progress bar */}
+        {typeof video.progressSec === "number" &&
+          video.progressSec > 0 &&
+          video.durationSec &&
+          video.progressSec < video.durationSec && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/40">
+              <div
+                className="h-full bg-primary"
+                style={{
+                  width: `${Math.min(100, (video.progressSec / video.durationSec) * 100)}%`,
+                }}
+              />
+            </div>
+          )}
 
         {/* Desktop quick actions (hover) */}
         <div className="pointer-events-none hidden md:absolute md:bottom-2 md:right-2 md:z-20 md:flex md:items-center md:gap-1 md:rounded-full md:bg-black/60 md:p-1 md:backdrop-blur-sm md:opacity-0 md:group-hover/card:opacity-100 md:transition-opacity">

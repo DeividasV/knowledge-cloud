@@ -51,6 +51,8 @@ function VideoList({
                 score: vt.score,
               })),
               status: (video.userStates[0]?.status as VideoStatus) || "UNWATCHED",
+              progressSec: video.progressSec,
+              isNew: video.isNew,
             }}
             href={`/videos/${video.id}?from=${encodeURIComponent(from)}`}
             subtitle={
@@ -91,6 +93,12 @@ export default async function VideosPage({
   const session = await auth();
   const userId = session!.user!.id!;
 
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { lastVisitAt: true },
+  });
+  const lastVisitAt = user?.lastVisitAt ?? null;
+
   const {
     page: pageStr,
     status: statusLegacy,
@@ -110,7 +118,7 @@ export default async function VideosPage({
   const baseWhereClause = await userVideosWhereWithCategory(userId);
 
   // Tab counts (without search filter)
-  const [standaloneCount, statusCounts] = await Promise.all([
+  const [standaloneCount, statusCounts, newCount] = await Promise.all([
     prisma.video.count({
       where: {
         ...baseWhereClause,
@@ -122,6 +130,23 @@ export default async function VideosPage({
       where: { userId },
       _count: { status: true },
     }),
+    (async () => {
+      if (!lastVisitAt) return 0;
+      return prisma.video.count({
+        where: {
+          ...baseWhereClause,
+          publishedAt: { gt: lastVisitAt },
+          NOT: {
+            userStates: {
+              some: {
+                userId,
+                status: { in: ["WATCHED", "NOT_INTERESTED"] },
+              },
+            },
+          },
+        },
+      });
+    })(),
   ]);
 
   const counts = {
@@ -142,6 +167,7 @@ export default async function VideosPage({
     query,
     tab,
     page,
+    lastVisitAt,
   });
 
   const totalPages = Math.ceil(totalVideos / PAGE_SIZE);
@@ -169,6 +195,7 @@ export default async function VideosPage({
         <TabsList>
           <TabsTrigger value="all">All ({totalVideos})</TabsTrigger>
           <TabsTrigger value="unwatched">Unwatched ({counts.UNWATCHED})</TabsTrigger>
+          <TabsTrigger value="new">New ({newCount})</TabsTrigger>
           <TabsTrigger value="watched">Watched ({counts.WATCHED})</TabsTrigger>
           <TabsTrigger value="not-interested">Not interested ({counts.NOT_INTERESTED})</TabsTrigger>
           <TabsTrigger value="standalone">Standalone ({standaloneCount})</TabsTrigger>
@@ -177,13 +204,16 @@ export default async function VideosPage({
           <VideoList items={videos} from={returnUrl} page={page} totalPages={totalPages} query={query} />
         </TabsContent>
         <TabsContent value="unwatched" className="mt-4">
-          <FilteredVideos userId={userId} tab="unwatched" page={page} query={query} from={returnUrl} />
+          <FilteredVideos userId={userId} tab="unwatched" page={page} query={query} from={returnUrl} lastVisitAt={lastVisitAt} />
         </TabsContent>
         <TabsContent value="watched" className="mt-4">
-          <FilteredVideos userId={userId} tab="watched" page={page} query={query} from={returnUrl} />
+          <FilteredVideos userId={userId} tab="watched" page={page} query={query} from={returnUrl} lastVisitAt={lastVisitAt} />
         </TabsContent>
         <TabsContent value="not-interested" className="mt-4">
-          <FilteredVideos userId={userId} tab="not-interested" page={page} query={query} from={returnUrl} />
+          <FilteredVideos userId={userId} tab="not-interested" page={page} query={query} from={returnUrl} lastVisitAt={lastVisitAt} />
+        </TabsContent>
+        <TabsContent value="new" className="mt-4">
+          <FilteredVideos userId={userId} tab="new" page={page} query={query} from={returnUrl} lastVisitAt={lastVisitAt} />
         </TabsContent>
         <TabsContent value="standalone" className="mt-4">
           <VideoList items={videos} from={returnUrl} page={page} totalPages={totalPages} query={query} />
@@ -199,18 +229,21 @@ async function FilteredVideos({
   page,
   query,
   from,
+  lastVisitAt,
 }: {
   userId: string;
   tab: string;
   page: number;
   query?: string;
   from: string;
+  lastVisitAt?: Date | null;
 }) {
   const { videos, total } = await searchVideos({
     userId,
     query,
     tab,
     page,
+    lastVisitAt,
   });
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -242,6 +275,8 @@ async function FilteredVideos({
                 score: vt.score,
               })),
               status: (video.userStates[0]?.status as VideoStatus) || "UNWATCHED",
+              progressSec: video.progressSec,
+              isNew: video.isNew,
             }}
             href={`/videos/${video.id}?from=${encodeURIComponent(from)}`}
             subtitle={

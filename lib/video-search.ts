@@ -32,7 +32,10 @@ export interface VideoSearchResult {
   userStates: {
     status: string;
     addedStandalone: boolean;
+    progressSec: number;
   }[];
+  progressSec: number | null;
+  isNew: boolean;
   searchScore: number;
 }
 
@@ -106,9 +109,24 @@ function buildSearchOr(query: string): Prisma.VideoWhereInput {
 
 function buildTabFilter(
   tab: string,
-  userId: string
+  userId: string,
+  lastVisitAt?: Date | null
 ): Prisma.VideoWhereInput {
   switch (tab) {
+    case "new": {
+      if (!lastVisitAt) return { id: "" };
+      return {
+        publishedAt: { gt: lastVisitAt },
+        NOT: {
+          userStates: {
+            some: {
+              userId,
+              status: { in: ["WATCHED", "NOT_INTERESTED"] },
+            },
+          },
+        },
+      };
+    }
     case "standalone":
       return { channelId: null };
     case "unwatched":
@@ -136,15 +154,17 @@ export async function searchVideos({
   query,
   tab,
   page,
+  lastVisitAt,
 }: {
   userId: string;
   query?: string;
   tab: string;
   page: number;
+  lastVisitAt?: Date | null;
 }): Promise<{ videos: VideoSearchResult[]; total: number }> {
   const skip = (page - 1) * PAGE_SIZE;
   const baseWhereClause = await userVideosWhereWithCategory(userId);
-  const tabFilter = buildTabFilter(tab, userId);
+  const tabFilter = buildTabFilter(tab, userId, lastVisitAt);
 
   type VideoWithIncludes = Prisma.VideoGetPayload<{
     include: {
@@ -180,7 +200,12 @@ export async function searchVideos({
     ]);
 
     return {
-      videos: videos.map((v) => ({ ...v, searchScore: 0 })) as VideoSearchResult[],
+      videos: videos.map((v) => ({
+        ...v,
+        progressSec: v.userStates[0]?.progressSec ?? null,
+        isNew: !!lastVisitAt && v.publishedAt > lastVisitAt,
+        searchScore: 0,
+      })) as VideoSearchResult[],
       total,
     };
   }
@@ -208,6 +233,8 @@ export async function searchVideos({
 
   const scored = allVideos.map((video) => ({
     ...(video as VideoWithIncludes),
+    progressSec: video.userStates[0]?.progressSec ?? null,
+    isNew: !!lastVisitAt && video.publishedAt > lastVisitAt,
     searchScore: scoreVideo(video, q),
   })) as VideoSearchResult[];
 
