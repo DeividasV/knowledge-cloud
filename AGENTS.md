@@ -82,7 +82,7 @@ A protected `/api/sync` endpoint triggers background channel syncing. It require
 Example host cron entry (every 6 hours):
 
 ```bash
-0 */6 * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://knowledge-cloud.atlas.solutionocean.com/api/sync >/dev/null
+0 */6 * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://vault.atlas.solutionocean.com/api/sync >/dev/null
 ```
 
 The endpoint returns JSON with `synced`, `failed`, and `staleRemaining` counts.
