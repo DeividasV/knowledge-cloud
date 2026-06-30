@@ -52,20 +52,11 @@ async function propagateChannelCategoryToVideos(channelId: string) {
   });
 }
 
-export async function syncChannelVideos(channelId: string) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) throw new Error("Not authenticated");
-
-  await assertUserOwnsChannel(userId, channelId);
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { maxVideosPerChannelSync: true, minVideoDurationSec: true },
-  });
-  const maxVideos = user?.maxVideosPerChannelSync ?? 500;
-  const minDuration = user?.minVideoDurationSec ?? 300;
-
+export async function syncChannelVideosInternal(
+  channelId: string,
+  maxVideos: number,
+  minDuration: number
+) {
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
     include: { categories: true },
@@ -215,6 +206,23 @@ export async function syncChannelVideos(channelId: string) {
 
   // Propagate channel categories to all its videos so standalone-like filtering works
   await propagateChannelCategoryToVideos(channelId);
+}
+
+export async function syncChannelVideos(channelId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) throw new Error("Not authenticated");
+
+  await assertUserOwnsChannel(userId, channelId);
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { maxVideosPerChannelSync: true, minVideoDurationSec: true },
+  });
+  const maxVideos = user?.maxVideosPerChannelSync ?? 500;
+  const minDuration = user?.minVideoDurationSec ?? 300;
+
+  await syncChannelVideosInternal(channelId, maxVideos, minDuration);
 
   revalidatePath("/");
   revalidatePath("/channels/[channelId]");
@@ -222,26 +230,24 @@ export async function syncChannelVideos(channelId: string) {
   revalidatePath("/settings");
 }
 
-export async function getChannelsNeedingSync(hoursAgo = 24) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) throw new Error("Not authenticated");
-
+export async function getChannelsNeedingSyncForUser(userId: string, hoursAgo = 24) {
   const cutoff = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
 
-  const channels = await prisma.channel.findMany({
+  return prisma.channel.findMany({
     where: {
       users: { some: { id: userId } },
-      OR: [
-        { lastSyncedAt: { lt: cutoff } },
-        { lastSyncedAt: null },
-      ],
+      OR: [{ lastSyncedAt: { lt: cutoff } }, { lastSyncedAt: null }],
     },
     select: { id: true, title: true, lastSyncedAt: true },
     orderBy: { lastSyncedAt: "asc" },
   });
+}
 
-  return channels;
+export async function getChannelsNeedingSync(hoursAgo = 24) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) throw new Error("Not authenticated");
+  return getChannelsNeedingSyncForUser(userId, hoursAgo);
 }
 
 export async function syncChannelsBatch(channelIds: string[]) {

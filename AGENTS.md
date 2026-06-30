@@ -74,3 +74,15 @@ npm run lint     # ESLint
   - `MAJOR` is a manual constant in `lib/version.ts`.
   - `DEPLOY_COUNT` is maintained on the production server in `.deploy-count` and injected via the `DEPLOY_COUNT` Docker build arg.
   - `COMMIT_COUNT` is computed from `git rev-list --count main`.
+
+## Auto-sync
+
+A protected `/api/sync` endpoint triggers background channel syncing. It requires `CRON_SECRET` and syncs every channel whose `lastSyncedAt` is older than 24h.
+
+Example host cron entry (every 6 hours):
+
+```bash
+0 */6 * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://knowledge-cloud.atlas.solutionocean.com/api/sync >/dev/null
+```
+
+The endpoint returns JSON with `synced`, `failed`, and `staleRemaining` counts.
