@@ -18,8 +18,10 @@ RUN npx prisma generate
 # Build the Next.js app
 RUN npm run build
 
+ARG DEPLOY_COUNT=0
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV DEPLOY_COUNT=$DEPLOY_COUNT
 EXPOSE 3000
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
