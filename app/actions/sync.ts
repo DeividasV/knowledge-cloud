@@ -91,6 +91,9 @@ export async function syncChannelVideos(channelId: string) {
 
   if (hasYoutubeApiKey()) {
     // ── API path ──────────────────────────────────────────────────────
+    // Fetch the entire uploads playlist first, then apply the duration filter
+    // and the max-videos cap. Stopping early at maxVideos raw playlist items
+    // skips long videos that appear after many shorts in the playlist.
     const allItems: YouTubePlaylistItem[] = [];
     let pageToken: string | undefined;
 
@@ -98,7 +101,7 @@ export async function syncChannelVideos(channelId: string) {
       const data = await fetchPlaylistItems(channel.uploadsPlaylistId, pageToken);
       allItems.push(...(data.items || []));
       pageToken = data.nextPageToken;
-    } while (pageToken && allItems.length < maxVideos);
+    } while (pageToken);
 
     const videoIds = allItems
       .map((item) => item.snippet.resourceId?.videoId)
@@ -144,6 +147,7 @@ export async function syncChannelVideos(channelId: string) {
 
   const categoryCounts = new Map<string, number>();
   const shortsToDelete: string[] = [];
+  let storedCount = 0;
 
   for (const v of videoDetails) {
     // Shorts filtering only works when we have duration
@@ -153,6 +157,11 @@ export async function syncChannelVideos(channelId: string) {
       }
       continue;
     }
+
+    if (storedCount >= maxVideos) {
+      continue;
+    }
+    storedCount++;
 
     if (v.category) {
       categoryCounts.set(v.category, (categoryCounts.get(v.category) || 0) + 1);
