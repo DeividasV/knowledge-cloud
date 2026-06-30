@@ -1,16 +1,17 @@
 import { execSync } from "child_process";
 
 /**
- * App version format: MAJOR.MINOR.PATCH
+ * App version format: MAJOR.DEPLOY_COUNT.COMMIT_COUNT
  * - MAJOR: manually bumped for significant releases
- * - MINOR: number of merges to main (proxy for production deploys)
- * - PATCH: total number of commits on main
+ * - DEPLOY_COUNT: number of production deploys/publishes
+ *   (set via DEPLOY_COUNT env var during the Docker build)
+ * - COMMIT_COUNT: total number of commits on main
  */
 const MAJOR_VERSION = 1;
 
-function getGitCount(args: string[]): number {
+function getGitCommitCount(): number {
   try {
-    const output = execSync(`git rev-list --count ${args.join(" ")}`, {
+    const output = execSync("git rev-list --count main", {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "ignore"],
     });
@@ -21,7 +22,7 @@ function getGitCount(args: string[]): number {
 }
 
 export function getAppVersion(): string {
-  const merges = getGitCount(["--merges", "main"]);
-  const commits = getGitCount(["main"]);
-  return `${MAJOR_VERSION}.${merges}.${commits}`;
+  const deployCount = parseInt(process.env.DEPLOY_COUNT || "0", 10) || 0;
+  const commitCount = getGitCommitCount();
+  return `${MAJOR_VERSION}.${deployCount}.${commitCount}`;
 }
